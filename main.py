@@ -1,4 +1,3 @@
-# !/usr/bin/env python3
 """
 GST File Organizer & Report Generator v3.0
 Main entry point for the application.
