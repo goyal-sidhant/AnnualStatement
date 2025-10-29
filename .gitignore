@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project-specific
+*.log
+gst_organizer.log
+pq_extractor.log
+.gst_organizer_cache.json
+*.cache
+.cache/
+temp/
+logs/
+
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+*.tmp
+temp_gst_*
+backup_*
+
+# Output directories (user data)
+/Annual Statement-*/
+/output/
+/target/
+
+# User data and sensitive information
+/mnt/user-data/
+*.bak
+config/last_session.json
+
+# Test files
+test_files/
+test_data/
+*.test.xlsx
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Power Query cache
+*.odc
+*.iqy
+*.dqy
+*.xlquery
