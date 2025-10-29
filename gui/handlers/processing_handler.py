@@ -33,23 +33,23 @@ class ProcessingHandler:
         # Switch to processing tab
         self.app.notebook.select(2)
         
-        self.app.log_message("🧪 ════════ DRY RUN PREVIEW ════════", 'info')
-        self.app.log_message(f"🎯 Mode: {self.app.processing_mode.get()}", 'info')
-        self.app.log_message(f"👥 Selected: {len(selected)} clients", 'info')
+        self.app.root.after(0, lambda: self.app.log_message("🧪 ════════ DRY RUN PREVIEW ════════", 'info'))
+        self.app.root.after(0, lambda: self.app.log_message(f"🎯 Mode: {self.app.processing_mode.get()}", 'info'))
+        self.app.root.after(0, lambda: self.app.log_message(f"👥 Selected: {len(selected)} clients", 'info'))
         
         for client_key in selected:
             client_info = self.app.client_data[client_key]
-            self.app.log_message(f"\n🏢 {client_info['client']} - {client_info['state']}", 'info')
+            self.app.root.after(0, lambda: self.app.log_message(f"\n🏢 {client_info['client']} - {client_info['state']}", 'info'))
             
             for file_type, files in client_info['files'].items():
                 for file_info in files:
-                    self.app.log_message(f"  📄 Would organize: {file_info['name']}", 'normal')
+                    self.app.root.after(0, lambda: self.app.log_message(f"  📄 Would organize: {file_info['name']}", 'normal'))
                     
-            self.app.log_message("  📊 Would create: ITC Report", 'success')
-            self.app.log_message("  💰 Would create: Sales Report", 'success')
+            self.app.root.after(0, lambda: self.app.log_message("  📊 Would create: ITC Report", 'success'))
+            self.app.root.after(0, lambda: self.app.log_message("  💰 Would create: Sales Report", 'success'))
             
-        self.app.log_message("\n🧪 ════════ DRY RUN COMPLETE ════════", 'success')
-        self.app.log_message("💡 No files were actually moved or created", 'warning')
+        self.app.root.after(0, lambda: self.app.log_message("\n🧪 ════════ DRY RUN COMPLETE ════════", 'success'))
+        self.app.root.after(0, lambda: self.app.log_message("💡 No files were actually moved or created", 'warning'))
     
     def start_processing(self):
         """Start processing selected clients"""
@@ -61,16 +61,32 @@ class ProcessingHandler:
             messagebox.showwarning("Warning", MESSAGES['errors']['no_selection'])
             return
 
+        # CHANGE: Only warn about long client names when the
+        # "Include client name in folders" option is enabled.
+        # Use the configurable `client_name_max_length` if available
+        # (falls back to 10). This is safer and easier to review.
         if self.app.include_client_name_in_folders.get():
+            # Determine max length from app setting, with safe fallback
+            try:
+                max_len = int(self.app.client_name_max_length.get())
+                if max_len <= 0:
+                    max_len = 10
+            except Exception:
+                max_len = 10
+
             long_names = []
             for client_key in selected:
-                client_info = self.app.client_data[client_key]
-                if len(client_info['client']) > 10:
-                    long_names.append(client_info['client'])
-        
+                client_info = self.app.client_data.get(client_key, {})
+                client_name = client_info.get('client', '')
+                # Only consider non-empty names
+                if client_name and len(client_name) > max_len:
+                    long_names.append((client_name, len(client_name)))
+
             if long_names:
-                msg = "Long client names detected:\n\n"
-                msg += "\n".join(f"• {name} ({len(name)} chars)" for name in long_names[:5])
+                msg = f"Long client names detected (exceeding {max_len} chars):\n\n"
+                msg += "\n".join(f"• {name} ({length} chars)" for name, length in long_names[:5])
+                msg += "\n\nIf you continue, these client names will be used in folder names."
+                # Keep the existing modal confirmation behavior
                 if not messagebox.askyesno("Warning", msg + "\n\nContinue anyway?"):
                     return
         
@@ -85,7 +101,7 @@ class ProcessingHandler:
         self.app.stop_requested = False
         self.app.is_processing = True
         
-        self.app.log_message("🚀 ════════ PROCESSING STARTED ════════", 'success')
+        self.app.root.after(0, lambda: self.app.log_message("🚀 ════════ PROCESSING STARTED ════════", 'success'))
         
         # Start processing thread
         self.app.processing_thread = threading.Thread(
@@ -159,10 +175,10 @@ class ProcessingHandler:
                 # Update progress with client counter and time remaining
                 progress = (idx / total_clients) * 100
                 status_msg = f"Client {idx + 1} of {total_clients}: {client_info['client']} | ETA: {time_remaining}"
-                self.app.update_progress(progress, status_msg)
+                self.app.root.after(0, lambda: self.app.update_progress(progress, status_msg))
                 
                 try:
-                    self.app.log_message(f"\n🏢 Processing {client_info['client']} - {client_info['state']}", 'info')
+                    self.app.root.after(0, lambda: self.app.log_message(f"\n🏢 Processing {client_info['client']} - {client_info['state']}", 'info'))
 
                     # Track report creation success for this client
                     itc_success = False
@@ -170,24 +186,24 @@ class ProcessingHandler:
                     
                     # Create folders
                     folder_msg = f"Client {idx + 1}/{total_clients}: Creating folders | ETA: {time_remaining}"
-                    self.app.update_progress(progress, folder_msg)
+                    self.app.root.after(0, lambda: self.app.update_progress(progress, folder_msg))
                     folders = self.app.file_organizer.create_client_structure(client_info)
                     
                     if level1_folder is None:
                         level1_folder = folders['level1']
                     
-                    self.app.log_message("  ✓ Created folder structure", 'success')
+                    self.app.root.after(0, lambda: self.app.log_message("  ✓ Created folder structure", 'success'))
                     
                     # Log folder structure
-                    self.app.log_message(f"    Level 1: {folders['level1'].name}", 'normal')
-                    self.app.log_message(f"    Level 2: {folders['level2'].name}", 'normal')
-                    self.app.log_message(f"    Level 3: {folders['version'].name}", 'normal')
+                    self.app.root.after(0, lambda: self.app.log_message(f"    Level 1: {folders['level1'].name}", 'normal'))
+                    self.app.root.after(0, lambda: self.app.log_message(f"    Level 2: {folders['level2'].name}", 'normal'))
+                    self.app.root.after(0, lambda: self.app.log_message(f"    Level 3: {folders['version'].name}", 'normal'))
                     
                     # Organize files
                     def file_progress(current, total, message):
                         sub_progress = progress + (current / total) * (50 / total_clients)
                         file_msg = f"Client {idx + 1}/{total_clients}: {message} | ETA: {time_remaining}"
-                        self.app.update_progress(sub_progress, file_msg)
+                        self.app.root.after(0, lambda: self.app.update_progress(sub_progress, file_msg))
                     
                     file_results = self.app.file_organizer.organize_files(
                         client_info, folders, file_progress
@@ -197,17 +213,17 @@ class ProcessingHandler:
                     total_files += successful_files
                     summary_data['total_files'] += successful_files
                     
-                    self.app.log_message(f"  ✓ Organized {successful_files} files", 'success')
+                    self.app.root.after(0, lambda: self.app.log_message(f"  ✓ Organized {successful_files} files", 'success'))
                     
                     # Log file organization details
                     for result in file_results:
                         if result['status'] == 'Success':
-                            self.app.log_message(f"    📁 {result['filename']} → {result['file_type']} folder", 'normal')
+                            self.app.root.after(0, lambda: self.app.log_message(f"    📁 {result['filename']} → {result['file_type']} folder", 'normal'))
                     
                     # Create reports
                     report_progress = progress + 50 / total_clients
                     report_msg = f"Client {idx + 1}/{total_clients}: Creating Excel reports | ETA: {time_remaining}"
-                    self.app.update_progress(report_progress, report_msg)
+                    self.app.root.after(0, lambda: self.app.update_progress(report_progress, report_msg))
                     
                     # Prepare safe filenames
                     safe_client = sanitize_filename(client_info['client'])
@@ -218,9 +234,9 @@ class ProcessingHandler:
                     itc_name = f"ITC_Report_{safe_client}_{safe_state}_{safe_timestamp}"
                     itc_output = folders['version'] / f"{itc_name}.xlsx"
                     
-                    self.app.log_message("  📊 Creating ITC report...", 'info')
-                    self.app.log_message(f"    Template: {Path(self.app.itc_template.get()).name}", 'normal')
-                    self.app.log_message(f"    Output: {itc_output.name}", 'normal')
+                    self.app.root.after(0, lambda: self.app.log_message("  📊 Creating ITC report...", 'info'))
+                    self.app.root.after(0, lambda: self.app.log_message(f"    Template: {Path(self.app.itc_template.get()).name}", 'normal'))
+                    self.app.root.after(0, lambda: self.app.log_message(f"    Output: {itc_output.name}", 'normal'))
                     
                     try:
                         itc_data = self.app.excel_handler.prepare_template_data(

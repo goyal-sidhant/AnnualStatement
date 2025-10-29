@@ -27,6 +27,7 @@ class FileParser:
     def __init__(self):
         self.patterns = FILE_PATTERNS
         self.expected_types = EXPECTED_FILE_TYPES
+        self.progress_callback = None
         self.reset()
     
     def reset(self):
@@ -44,6 +45,14 @@ class FileParser:
         })
         self.variations = []
         self.errors = []
+
+    def _update_progress(self, current: int, total: int, message: str):
+        """Safely update progress if callback exists"""
+        if self.progress_callback:
+            try:
+                self.progress_callback(current, total, message)
+            except Exception as e:
+                logger.warning(f"Progress callback failed: {e}")
     
     def parse_filename(self, filename: str) -> Dict[str, Any]:
         """
@@ -138,41 +147,30 @@ class FileParser:
             Tuple of (scanned_files, client_data, variations)
         """
         self.reset()
-        
+        self.progress_callback = progress_callback
         try:
             folder = Path(folder_path)
             if not folder.exists():
                 raise FileNotFoundError(f"Folder not found: {folder}")
-            
             if not folder.is_dir():
                 raise ValueError(f"Not a directory: {folder}")
-            
             # Find all Excel files
             excel_files = find_excel_files(folder)
-            
             if not excel_files:
                 logger.warning(f"No Excel files found in {folder}")
                 return self.scanned_files, dict(self.client_data), self.variations
-            
             total_files = len(excel_files)
             logger.info(f"Found {total_files} Excel files to process")
-            
             # Process each file
             for idx, file_path in enumerate(excel_files):
-                if progress_callback:
-                    progress_callback(idx + 1, total_files, f"Processing {file_path.name}")
-                
+                self._update_progress(idx + 1, total_files, f"Processing {file_path.name}")
                 self._process_file(file_path, folder)
-            
             # Analyze completeness
             self._analyze_client_completeness()
-            
             # Log summary
             logger.info(f"Scan complete: {len(self.client_data)} clients, "
                        f"{len(self.variations)} variations")
-            
             return self.scanned_files, dict(self.client_data), self.variations
-            
         except Exception as e:
             logger.error(f"Error scanning folder: {e}")
             self.errors.append(str(e))

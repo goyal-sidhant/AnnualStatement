@@ -72,7 +72,7 @@ class FileHandler:
                 self.app.file_parser.scan_folder(self.app.source_folder.get(), progress_callback)
             
             # Show count while scanning
-            file_count = len(self.app.file_parser.scanned_files)
+            file_count = len(self.app.scanned_files)
             self.app.update_status(f"🔍 Found {file_count} Excel files")
             
             # Update displays

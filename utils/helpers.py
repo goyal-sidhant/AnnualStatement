@@ -488,7 +488,7 @@ def get_state_code(state_name: str) -> str:
         return state_name
     
     # Import here to avoid circular import
-    from utils.constants import STATE_CODE_MAPPING
+    from .constants import STATE_CODE_MAPPING
     
     # Clean and normalize
     clean_state = state_name.strip().lower()
