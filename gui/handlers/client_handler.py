@@ -51,12 +51,6 @@ class ClientHandler:
             # Color coding
             if client_info['status'] == 'Complete':
                 self.app.client_tree.item(item, tags=('complete',))
-            # Ensure text color is correct
-            if not self.app.dark_mode.get():
-                self.app.client_tree.item(item, tags=('complete',))
-                # Force text to be black in light mode
-                for col in self.app.client_tree['columns']:
-                    self.app.client_tree.set(item, col, self.app.client_tree.set(item, col))
             else:
                 self.app.client_tree.item(item, tags=('incomplete',))
         
