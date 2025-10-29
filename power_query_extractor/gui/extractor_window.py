@@ -213,6 +213,27 @@ class PowerQueryExtractorApp(tk.Tk):
         canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
+        # Mouse wheel scrolling function
+        def _on_mousewheel(event):
+            # Check if there's content to scroll
+            if canvas.winfo_height() < self.scrollable_frame.winfo_reqheight():
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            return "break"
+        
+        # Windows mouse wheel binding
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        self.scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
+        
+        # Focus-based binding to avoid conflicts
+        def _bind_wheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_wheel(event):
+            canvas.unbind_all("<MouseWheel>")
+        
+        canvas.bind("<Enter>", _bind_wheel)
+        canvas.bind("<Leave>", _unbind_wheel)
+        
         canvas.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
@@ -305,6 +326,15 @@ class PowerQueryExtractorApp(tk.Tk):
         log_scroll = ttk.Scrollbar(log_container, command=self.log_text.yview)
         log_scroll.pack(side='right', fill='y')
         self.log_text.config(yscrollcommand=log_scroll.set)
+        
+        # Mouse wheel scrolling for log text
+        def _on_log_mousewheel(event):
+            if self.log_text.compare("end-1c", "!=", "1.0"):  # Check if there's content
+                self.log_text.yview_scroll(int(-1*(event.delta/120)), "units")
+            return "break"
+
+        # Windows mouse wheel binding for log text
+        self.log_text.bind("<MouseWheel>", _on_log_mousewheel)
         
         # Configure text tags for colors
         self.log_text.tag_config('info', foreground='#000000')
