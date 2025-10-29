@@ -1,23 +1,58 @@
-# GST File Organizer v3.0 - Production Ready
+# 📊 GST File Organizer v3.0 - Production Ready
 
-A robust, enterprise-grade application for organizing GST files and generating Excel reports without corruption issues.
+A robust, enterprise-grade Python application for organizing GST (Goods and Services Tax) files and generating automated reports with Power Query support.
 
-## 🌟 Key Features
+## ⚠️ IMPORTANT: Prevents Excel Corruption
 
-- **Bulletproof Excel Handling**: Multiple safety layers to prevent file corruption
-- **Smart File Recognition**: Automatically categorizes 6 types of GST files
-- **Intelligent Organization**: Creates hierarchical folder structure
-- **Safe Report Generation**: Creates ITC and Sales reports from templates
-- **Comprehensive Summary**: Excel summary report with 5 detailed sheets
-- **Modern GUI**: User-friendly interface with progress tracking
-- **Error Recovery**: Robust error handling and recovery mechanisms
+This version specifically includes multiple safety mechanisms to prevent Excel file corruption - a common issue in earlier versions. All file operations use temporary files and verification steps.
+
+## 🎯 Overview
+
+The GST File Organizer is a comprehensive solution designed to:
+- **Organize** scattered GST Excel files into a structured folder hierarchy
+- **Generate** ITC and Sales reports automatically using Excel templates
+- **Refresh** Power Query connections in Excel reports
+- **Extract** specific cell values from multiple reports into consolidated sheets
+- **Support** batch processing for multiple clients
+- **Prevent** Excel file corruption with multiple safety layers
+
+## ✨ Features
+
+### Core Features
+- 📁 **Smart File Organization**: Automatically categorizes and organizes GST files by client and state
+- 📊 **Automated Report Generation**: Creates ITC and Sales reports using Excel templates
+- 🔄 **Power Query Support**: Refreshes data connections in Excel (Windows only)
+- 📈 **Data Extraction**: Consolidates specific cell values from multiple reports
+- 🎨 **Dark Mode**: Toggle between light and dark themes
+- 💾 **Session Memory**: Remembers your last used folders and settings
+- 🛡️ **Bulletproof Excel Handling**: Multiple safety layers to prevent file corruption
+- 📋 **Comprehensive Summary**: Excel summary report with 5 detailed sheets
+
+### File Type Support
+- GSTR-2B Reconciliation files
+- IMS Reconciliation files  
+- GSTR-3B Export files (supports multiple monthly filings)
+- Sales files
+- Sales Reconciliation files
+- Annual Reports
+
+## 🔒 Excel Corruption Prevention
+
+This version specifically addresses Excel corruption issues with:
+- **Safe file operations**: All Excel operations use temporary files
+- **Verification**: Files are verified before finalization  
+- **Clean saves**: No VBA macros or external links preserved
+- **Robust sanitization**: Filenames are thoroughly cleaned
+- **Multiple safety layers**: Prevent file corruption at every step
+- **Backup creation**: Original files are never modified
 
 ## 📋 System Requirements
 
-- **Python**: 3.7 or higher
-- **Operating System**: Windows 10/11, macOS, Linux
+- **Python**: 3.7 or higher (3.8+ recommended)
+- **Operating System**: Windows 10/11 (best), macOS, Linux
 - **Memory**: 4GB RAM minimum (8GB recommended)
 - **Storage**: 500MB free space for application and temporary files
+- **Excel**: Microsoft Excel 2016+ for Power Query features (Windows only)
 
 ## 🚀 Quick Start Setup
 
@@ -26,43 +61,53 @@ A robust, enterprise-grade application for organizing GST files and generating E
 1. Download Python from [python.org](https://www.python.org/downloads/)
 2. During installation, **CHECK** "Add Python to PATH"
 3. Verify installation:
-   ```bash
+```bash
    python --version
-   ```
+```
 
 ### Step 2: Download and Extract Application
 
 1. Download all files to a folder (e.g., `C:\GST_Organizer`)
-2. Ensure this folder structure:
-   ```
+2. Ensure this folder structure exists:
+```
    GST_Organizer/
    ├── main.py
+   ├── launch_extractor.py
    ├── requirements.txt
-   ├── README.md
    ├── core/
    │   ├── __init__.py
-   │   ├── file_parser.py
+   │   ├── excel_handler.py
    │   ├── file_organizer.py
-   │   └── excel_handler.py
+   │   └── file_parser.py
+   ├── gui/
+   │   ├── handlers/
+   │   ├── tabs/
+   │   ├── utils/
+   │   └── widgets/
    ├── utils/
    │   ├── __init__.py
    │   ├── constants.py
    │   └── helpers.py
-   └── gui/
-       ├── __init__.py
-       └── app.py
-   ```
+   └── power_query_extractor/
+       ├── core/
+       ├── gui/
+       └── config/
+```
 
 ### Step 3: Install Dependencies
 
-Open Command Prompt/Terminal in the application folder and run:
-
+Open Command Prompt/Terminal in the application folder:
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 4: Run the Application
+### Requirements.txt Contents
+```txt
+openpyxl>=3.0.0
+pywin32>=305; sys_platform == 'win32'
+```
 
+### Step 4: Run the Application
 ```bash
 python main.py
 ```
@@ -71,49 +116,72 @@ python main.py
 
 ### 1. Prepare Your Files
 
-**Excel Templates:**
+**Excel Templates Requirements:**
 - Create or obtain ITC Report template (.xlsx or .xltx)
 - Create or obtain Sales Report template (.xlsx or .xltx)
-- Templates should have a "Links" sheet with cells for data insertion
+- **IMPORTANT**: Templates must have a "Links" sheet with specific cell mappings
 
-**GST Files Naming Convention:**
-- `GSTR-2B-Reco-ClientName-State-Period.xlsx`
-- `ImsReco-ClientName-State-DDMMYYYY.xlsx`
-- `GSTR3B-ClientName-State-Month.xlsx`
-- `Sales-ClientName-State-StartMonth-EndMonth.xlsx`
-- `SalesReco-ClientName-State-Period.xlsx`
-- `AnnualReport-ClientName-State-Year.xlsx`
+**GST Files Naming Convention (MUST match exactly):**
 
-### 2. Using the Application
+| File Type | Pattern | Example |
+|-----------|---------|---------|
+| GSTR-2B Reco | `GSTR-2B-Reco-{Client}-{State}-{Period}.xlsx` | GSTR-2B-Reco-ABC Ltd-Maharashtra-Apr24.xlsx |
+| IMS Reco | `ImsReco-{Client}-{State}-{DDMMYYYY}.xlsx` | ImsReco-ABC Ltd-Maharashtra-30042024.xlsx |
+| GSTR-3B | `GSTR3B-{Client}-{State}-{Month}.xlsx` | GSTR3B-ABC Ltd-Maharashtra-Apr24.xlsx |
+| Sales | `Sales-{Client}-{State}-{Start}-{End}.xlsx` | Sales-ABC Ltd-Maharashtra-Apr-Jun.xlsx |
+| Sales Reco | `SalesReco-{Client}-{State}-{Period}.xlsx` | SalesReco-ABC Ltd-Maharashtra-Q1.xlsx |
+| Annual Report | `AnnualReport-{Client}-{State}-{Year}.xlsx` | AnnualReport-ABC Ltd-Maharashtra-2024.xlsx |
+
+### 2. Using the Main Application
 
 **Step 1: Setup Tab**
-1. Select source folder containing GST files
-2. Select ITC Report template file
-3. Select Sales Report template file
-4. **IMPORTANT**: Select target folder for organized files
-5. Choose processing mode (use "Fresh Run" for first time)
-6. Click "Scan Files"
+1. Click "Browse" to select **Source Folder** containing GST files
+2. Select **ITC Template** file
+3. Select **Sales Template** file  
+4. Select **Target Folder** for organized files
+5. Choose processing mode:
+   - 🆕 **Fresh Run**: First time processing (recommended)
+   - 🔄 **Re-Run**: Add new versions to existing structure
+   - ▶️ **Resume**: Continue interrupted processing
+6. Click **"Scan Files"**
 
 **Step 2: Validation Tab**
-1. Review scan summary
-2. Check client list (✅ = complete, ⚠️ = missing files)
-3. Select clients to process (click checkbox or use buttons)
-4. View variations if files don't match naming convention
-5. Click "Start Processing"
+1. Review scan summary and statistics
+2. Check client list:
+   - ✅ = All files present
+   - ⚠️ = Missing some files
+3. Select clients to process:
+   - Click checkbox for individual selection
+   - Use "Select All", "Clear All", or "Complete Only" buttons
+4. Review variations tab for naming issues
 
-**Step 3: Processing Tab**
-1. Monitor progress bar
-2. View detailed log
-3. Wait for completion message
+**Step 3: Processing Tab**  
+1. Click **"Dry Run"** to preview operations (optional)
+2. Click **"Start Processing"** to begin
+3. Monitor progress bar and detailed log
+4. Wait for completion message
 
-### 3. Output Structure
+### 3. Using Power Query Extractor
 
+After main processing, extract data from reports:
+```bash
+python launch_extractor.py
+```
+
+1. The extractor auto-loads target folder from cache
+2. Select clients to process
+3. Click **"Refresh & Extract"** to:
+   - Refresh Power Query connections
+   - Extract configured cell values
+   - Generate consolidated Excel report
+
+### 4. Output Structure & Files
 ```
 Target Folder/
-└── Annual Statement-DDMMYYYY HHMMSS/
+└── Annual Statement-DDMMYY HHMM/
     ├── GST_Processing_Summary_DDMMYYYY_HHMMSS.xlsx
-    └── ClientName-State/
-        └── Version-DDMMYYYY HHMMSS/
+    └── ClientName-StateCode/
+        └── Version-DDMMYY HHMM/
             ├── GSTR-3B Exports (ClientName)/
             ├── Other ITC related files (ClientName)/
             ├── Sales related files (ClientName)/
@@ -122,49 +190,24 @@ Target Folder/
             └── _Organization_Report_ClientName_State.txt
 ```
 
-## 🛠️ Troubleshooting
+### Output Files Generated
 
-### Excel Files Won't Open / Show Corruption Error
+1. **GST_Processing_Summary_DDMMYYYY_HHMMSS.xlsx** - Master summary with:
+   - Summary Sheet: Overall processing statistics
+   - Client Status: Status of each client
+   - File Mapping: Source to destination mapping  
+   - Errors: Detailed error information
+   - Variations: Files that don't match naming convention
 
-**This version specifically addresses this issue with:**
-1. **Safe file operations**: All Excel operations use temporary files
-2. **Verification**: Files are verified before finalization
-3. **Clean saves**: No VBA macros or external links preserved
-4. **Robust sanitization**: Filenames are thoroughly cleaned
+2. **ITC_Report_ClientName_State_DDMMYYYY_HHMMSS.xlsx** - ITC report from template
+3. **Sales_Report_ClientName_State_DDMMYYYY_HHMMSS.xlsx** - Sales report from template
+4. **_Organization_Report_ClientName_State.txt** - Processing log for each client
 
-**If issues persist:**
-1. Check template files aren't corrupted
-2. Ensure sufficient disk space
-3. Run as administrator (Windows)
-4. Check antivirus isn't interfering
+## ⚙️ Configuration
 
-### Common Issues and Solutions
+### Template Cell Mappings
 
-**"No Excel files found"**
-- Check file extensions (.xlsx, .xls)
-- Ensure files aren't open in Excel
-- Verify folder permissions
-
-**"Missing module" error**
-- Run `pip install -r requirements.txt` again
-- Ensure you're using Python 3.7+
-- Check virtual environment if using one
-
-**"Permission denied" error**
-- Close all Excel files
-- Run as administrator
-- Check folder write permissions
-
-**Processing seems frozen**
-- Large files take time
-- Check the log for activity
-- Don't close Excel files during processing
-
-## 🔧 Configuration
-
-### Template Customization
-
-Templates should have a "Links" sheet with these cells:
+Templates must have a "Links" sheet with these cells:
 
 **ITC Template:**
 - B2: GSTR-3B folder path
@@ -183,48 +226,69 @@ Templates should have a "Links" sheet with these cells:
 - B8: Sales Reco folder path
 - B9: Sales Reco filename
 
-### Advanced Settings
+### Cell Extraction Configuration
 
-Edit `utils/constants.py` to modify:
-- File patterns
-- Folder structure
-- Excel safety settings
-- GUI appearance
+Edit `power_query_extractor/config/cell_mappings.py` to customize:
+```python
+EXTRACTION_CONFIG = {
+    'GSTR-3B Difference': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'Diff GSTR-3B',
+                'input_cell': 'J15',
+                'output_column': 'Diff IGST',
+                'calculation': None
+            },
+        ]
+    },
+}
 
-## 📊 Summary Report Contents
+EXTRACTION_OPTIONS = {
+    'skip_refresh': False,  # Set to True to skip Power Query refresh
+    'auto_refresh_if_missing': True,
+    'show_timestamp': False,
+    'missing_data_text': 'Missing',
+}
+```
 
-The Excel summary report includes:
+## 🛠️ Troubleshooting
 
-1. **Summary Sheet**: Overall processing statistics
-2. **Client Status**: Status of each client
-3. **File Mapping**: Source to destination mapping
-4. **Errors**: Detailed error information
-5. **Variations**: Files that don't match naming convention
+### Excel Files Won't Open / Show Corruption Error
 
-## 🔒 Security and Safety
+**This version specifically addresses this issue with:**
+1. Safe file operations using temporary files
+2. File verification before finalization
+3. Clean saves without VBA macros or external links
+4. Robust filename sanitization
 
-- No data is sent outside your computer
-- Original files are never modified
-- Backups created for existing files
-- All operations are logged
-- Extensive error checking
+**If issues persist:**
+- Check template files aren't corrupted
+- Ensure sufficient disk space
+- Run as administrator (Windows)
+- Check antivirus isn't interfering
 
-## 📞 Support
+### Common Issues and Solutions
 
-### Getting Help
+| Issue | Solution |
+|-------|----------|
+| "No module named 'win32com'" | `pip install pywin32` then run `python Scripts/pywin32_postinstall.py -install` as admin |
+| "No Excel files found" | Check file extensions (.xlsx, .xls) and naming convention |
+| "Permission denied" | Close all Excel files, run as administrator |
+| "Template not found" | Ensure templates have "Links" sheet |
+| Processing seems frozen | Large files take time, check log for activity |
 
-1. Check the log file: `gst_organizer.log`
-2. Review error messages carefully
-3. Ensure all prerequisites are met
-4. Try with a small test set first
+### Debug Mode
 
-### Reporting Issues
+Enable detailed logging:
+```python
+# In main.py or launch_extractor.py
+logging.basicConfig(level=logging.DEBUG)
+```
 
-When reporting issues, include:
-- Python version (`python --version`)
-- Operating system
-- Error messages from log
-- Steps to reproduce
+Logs are saved to:
+- `gst_organizer.log` - Main application
+- `pq_extractor.log` - Power Query extractor
 
 ## 🎯 Best Practices
 
@@ -234,20 +298,55 @@ When reporting issues, include:
 4. **Check names** match the expected patterns exactly
 5. **Review variations** and fix naming issues
 6. **Keep templates simple** without complex formulas
+7. **Close all Excel files** before processing
 
-## 📝 Version History
+## 🔒 Security and Safety
 
-### v3.0 (Current)
-- Complete rewrite for production stability
-- Enhanced Excel corruption prevention
-- Improved error handling and recovery
-- Modern GUI with better feedback
-- Comprehensive logging system
+- No data is sent outside your computer
+- Original files are never modified  
+- Backups created for existing files
+- All operations are logged
+- Extensive error checking
+- Multiple verification steps before file finalization
 
-### Known Limitations
+## ⚠️ Known Limitations
+
 - Excel files must be closed during processing
 - Templates must have specific structure
 - File names must match patterns exactly
+- Windows path limit of 260 characters applies
+- Power Query refresh requires Windows and Excel
+
+## 📝 Recent Bug Fixes (Latest Commit)
+
+- ✅ Fixed circular import error in utils/helpers.py (STATE_CODE_MAPPING)
+- ✅ Fixed scanned_files attribute access in file_handler.py
+- ✅ Resolved thread safety issues in processing_handler.py
+- ✅ Corrected client name validation logic indentation
+- ✅ Fixed progress callback handling
+- ✅ Enhanced Excel corruption prevention mechanisms
+
+## 📞 Support
+
+### Getting Help
+
+1. Check the log file: `gst_organizer.log`
+2. Review error messages in the application
+3. Ensure all prerequisites are met
+4. Try with a small test set first
+
+### Reporting Issues
+
+When reporting issues, include:
+- Python version (`python --version`)
+- Operating system and version
+- Error messages from log
+- Steps to reproduce
+- Sample file names (anonymized)
+
+## 📄 License
+
+This project is proprietary software for GST file management.
 
 ## 🏁 Conclusion
 
@@ -255,6 +354,11 @@ This application is designed to be robust and reliable for production use. The E
 
 For enterprise deployments or custom requirements, the modular architecture allows easy extension and modification.
 
+**Remember**: Always test with a small set of files first!
+
 ---
 
-**Remember**: Always test with a small set of files first!
+**Version:** 3.0 Production Ready  
+**Status:** Stable Release  
+**Last Updated:** 29th October 2025  
+**Author:** Advanced AI Assistant
