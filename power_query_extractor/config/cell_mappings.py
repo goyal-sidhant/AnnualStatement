@@ -100,6 +100,132 @@ EXTRACTION_CONFIG = {
             },
         ]
     },    
+    
+    # Reco Diff Sheet
+    'Reco Diff': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'Reco',
+                'input_cell': 'C37',
+                'output_column': 'IGST Diff',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'Reco',
+                'input_cell': 'D37',
+                'output_column': 'CGST Diff',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'Reco',
+                'input_cell': 'E37',
+                'output_column': 'SGST Diff',
+                'calculation': None
+            },
+        ]
+    },
+
+    # Table 6J Match Sheet
+    'Table 6J Match': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'T6 of R9',
+                'input_cell': 'K29',
+                'output_column': 'Table 6J Match',
+                'calculation': None
+            },
+        ]
+    },
+
+    # Table 8D Limits Sheet
+    'Table 8D Limits': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'T8 of R9',
+                'input_cell': 'G6',
+                'output_column': 'Table 8D Limits',
+                'calculation': None
+            },
+        ]
+    },
+
+    # IMS Reco Sheet
+    'IMS Reco': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'IMS_Reco',
+                'input_cell': 'AA1',
+                'output_column': 'IGST',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'IMS_Reco',
+                'input_cell': 'AD1',
+                'output_column': 'CGST',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'IMS_Reco',
+                'input_cell': 'AG1',
+                'output_column': 'SGST',
+                'calculation': None
+            },
+        ]
+    },
+
+    # Extra In Purchase Sheet
+    'Extra In Purchase': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'ExtraInPurchase',
+                'input_cell': 'O1',
+                'output_column': 'IGST',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'ExtraInPurchase',
+                'input_cell': 'P1',
+                'output_column': 'CGST',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'ExtraInPurchase',
+                'input_cell': 'Q1',
+                'output_column': 'SGST',
+                'calculation': None
+            },
+        ]
+    },
+
+    # Extra In GSTR2B Sheet
+    'Extra In GSTR2B': {
+        'report_type': 'ITC',
+        'mappings': [
+            {
+                'input_sheet': 'ExtraInGSTR2B',
+                'input_cell': 'S1',
+                'output_column': 'IGST',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'ExtraInGSTR2B',
+                'input_cell': 'T1',
+                'output_column': 'CGST',
+                'calculation': None
+            },
+            {
+                'input_sheet': 'ExtraInGSTR2B',
+                'input_cell': 'U1',
+                'output_column': 'SGST',
+                'calculation': None
+            },
+        ]
+    },
     # ADD MORE SHEETS HERE AS NEEDED
     # Example:
     # 'My Custom Sheet': {
