@@ -93,75 +93,182 @@ class PowerQueryExtractorApp(tk.Tk):
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
     
     def create_setup_tab(self):
-        """Create setup tab content"""
-        # Main container
+        """Create setup tab content with two-column layout"""
+        # Main container with two columns
         main_frame = tk.Frame(self.setup_tab, bg='white')
-        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
-        
+        main_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # LEFT COLUMN - Settings
+        left_column = tk.Frame(main_frame, bg='white', width=400)
+        left_column.pack(side='left', fill='both', padx=(0, 10))
+        left_column.pack_propagate(False)  # Maintain fixed width
+
         # Folder selection section
         folder_frame = tk.LabelFrame(
-            main_frame, 
-            text="Target Folder", 
-            font=('Segoe UI', 11, 'bold'),
-            bg='white',
-            padx=15, 
-            pady=15
-        )
-        folder_frame.pack(fill='x', pady=(0, 20))
-        
-        # Folder path entry
-        entry_frame = tk.Frame(folder_frame, bg='white')
-        entry_frame.pack(fill='x')
-        
-        tk.Label(
-            entry_frame,
-            text="Folder Path:",
-            bg='white',
-            font=('Segoe UI', 10)
-        ).pack(side='left', padx=(0, 10))
-        
-        tk.Entry(
-            entry_frame,
-            textvariable=self.folder_path,
-            font=('Segoe UI', 10),
-            width=50
-        ).pack(side='left', fill='x', expand=True, padx=(0, 10))
-        
-        tk.Button(
-            entry_frame,
-            text="📁 Browse",
-            command=self.browse_folder,
-            font=('Segoe UI', 10),
-            bg='#6c757d',
-            fg='white',
-            padx=15
-        ).pack(side='left', padx=(0, 5))
-        
-        tk.Button(
-            entry_frame,
-            text="🔍 Scan",
-            command=self.scan_folder,
-            font=('Segoe UI', 10, 'bold'),
-            bg='#28a745',
-            fg='white',
-            padx=15
-        ).pack(side='left')
-        
-        # Client selection section
-        client_frame = tk.LabelFrame(
-            main_frame,
-            text="Select Clients",
+            left_column,
+            text="Target Folder",
             font=('Segoe UI', 11, 'bold'),
             bg='white',
             padx=15,
             pady=15
         )
-        client_frame.pack(fill='both', expand=True, pady=(0, 20))
-        
+        folder_frame.pack(fill='x', pady=(0, 10))
+
+        # Folder path label
+        tk.Label(
+            folder_frame,
+            text="Folder Path:",
+            bg='white',
+            font=('Segoe UI', 10)
+        ).pack(anchor='w', pady=(0, 5))
+
+        # Folder path entry
+        tk.Entry(
+            folder_frame,
+            textvariable=self.folder_path,
+            font=('Segoe UI', 9),
+            width=35
+        ).pack(fill='x', pady=(0, 10))
+
+        # Browse and Scan buttons
+        btn_frame = tk.Frame(folder_frame, bg='white')
+        btn_frame.pack(fill='x')
+
+        tk.Button(
+            btn_frame,
+            text="📁 Browse",
+            command=self.browse_folder,
+            font=('Segoe UI', 9),
+            bg='#6c757d',
+            fg='white',
+            padx=15,
+            pady=5
+        ).pack(side='left', padx=(0, 5))
+
+        tk.Button(
+            btn_frame,
+            text="🔍 Scan",
+            command=self.scan_folder,
+            font=('Segoe UI', 9, 'bold'),
+            bg='#28a745',
+            fg='white',
+            padx=15,
+            pady=5
+        ).pack(side='left')
+
+        # Processing Options Section
+        options_frame = tk.LabelFrame(
+            left_column,
+            text="Processing Options",
+            font=('Segoe UI', 11, 'bold'),
+            bg='white',
+            padx=15,
+            pady=15
+        )
+        options_frame.pack(fill='x', pady=(0, 10))
+
+        # Wait time configuration
+        tk.Label(
+            options_frame,
+            text="Power Query Wait Time:",
+            bg='white',
+            font=('Segoe UI', 10)
+        ).pack(anchor='w', pady=(0, 5))
+
+        wait_frame = tk.Frame(options_frame, bg='white')
+        wait_frame.pack(fill='x', pady=(0, 10))
+
+        self.wait_time_var = tk.IntVar(value=10)
+        wait_spinbox = tk.Spinbox(
+            wait_frame,
+            from_=5,
+            to=60,
+            textvariable=self.wait_time_var,
+            width=8,
+            font=('Segoe UI', 10)
+        )
+        wait_spinbox.pack(side='left')
+
+        tk.Label(
+            wait_frame,
+            text="seconds (Min: 5, Max: 60)",
+            bg='white',
+            font=('Segoe UI', 9),
+            fg='#666'
+        ).pack(side='left', padx=(10, 0))
+
+        # File suffix configuration
+        tk.Label(
+            options_frame,
+            text="Refreshed File Suffix:",
+            bg='white',
+            font=('Segoe UI', 10)
+        ).pack(anchor='w', pady=(0, 5))
+
+        self.suffix_pattern_var = tk.StringVar(value="_Refreshed_{timestamp}")
+        suffix_entry = tk.Entry(
+            options_frame,
+            textvariable=self.suffix_pattern_var,
+            font=('Segoe UI', 9),
+            width=35
+        )
+        suffix_entry.pack(fill='x', pady=(0, 5))
+
+        tk.Label(
+            options_frame,
+            text="Use {timestamp} for datetime",
+            bg='white',
+            font=('Segoe UI', 9),
+            fg='#666'
+        ).pack(anchor='w', pady=(0, 10))
+
+        # Skip refresh checkbox
+        self.skip_refresh_var = tk.BooleanVar(value=False)
+        self.skip_refresh_check = tk.Checkbutton(
+            options_frame,
+            text="Skip Refresh\n(Use existing refreshed files)",
+            variable=self.skip_refresh_var,
+            command=self.on_skip_refresh_toggle,
+            font=('Segoe UI', 9),
+            bg='white',
+            justify='left'
+        )
+        self.skip_refresh_check.pack(anchor='w')
+
+        # Process button (at bottom of left column)
+        self.process_btn = tk.Button(
+            left_column,
+            text="🚀 Start Processing",
+            command=self.start_processing,
+            bg='#0078D4',
+            fg='white',
+            font=('Segoe UI', 11, 'bold'),
+            padx=20,
+            pady=12,
+            state='disabled',
+            cursor='hand2'
+        )
+        self.process_btn.pack(fill='x', pady=(10, 0))
+
+        # RIGHT COLUMN - Client Selection
+        right_column = tk.Frame(main_frame, bg='white')
+        right_column.pack(side='left', fill='both', expand=True)
+
+        # Client selection section
+        client_frame = tk.LabelFrame(
+            right_column,
+            text="Select Clients & Reports",
+            font=('Segoe UI', 11, 'bold'),
+            bg='white',
+            padx=15,
+            pady=15
+        )
+        client_frame.pack(fill='both', expand=True)
+
         # Buttons
         btn_frame = tk.Frame(client_frame, bg='white')
         btn_frame.pack(fill='x', pady=(0, 10))
-        
+
         tk.Button(
             btn_frame,
             text="✓ Select All",
@@ -169,9 +276,10 @@ class PowerQueryExtractorApp(tk.Tk):
             font=('Segoe UI', 9),
             bg='#17a2b8',
             fg='white',
-            padx=10
+            padx=10,
+            pady=3
         ).pack(side='left', padx=(0, 5))
-        
+
         tk.Button(
             btn_frame,
             text="✗ Deselect All",
@@ -179,78 +287,84 @@ class PowerQueryExtractorApp(tk.Tk):
             font=('Segoe UI', 9),
             bg='#6c757d',
             fg='white',
-            padx=10
+            padx=10,
+            pady=3
+        ).pack(side='left', padx=(0, 5))
+
+        tk.Button(
+            btn_frame,
+            text="ITC Only",
+            command=self.select_itc_only,
+            font=('Segoe UI', 9),
+            bg='#0078D4',
+            fg='white',
+            padx=10,
+            pady=3
+        ).pack(side='left', padx=(0, 5))
+
+        tk.Button(
+            btn_frame,
+            text="Sales Only",
+            command=self.select_sales_only,
+            font=('Segoe UI', 9),
+            bg='#0078D4',
+            fg='white',
+            padx=10,
+            pady=3
         ).pack(side='left')
 
-        # Add some spacing
-        tk.Label(btn_frame, text="    ", bg='white').pack(side='left')
-        
-        # Skip refresh checkbox
-        self.skip_refresh_var = tk.BooleanVar(value=False)
-        self.skip_refresh_check = tk.Checkbutton(
-            btn_frame,
-            text="Skip Refresh (Use existing refreshed files)",
-            variable=self.skip_refresh_var,
-            command=self.on_skip_refresh_toggle,
-            font=('Segoe UI', 10),
-            bg='white'
-        )
-        self.skip_refresh_check.pack(side='left', padx=20)
-        
         # Client list with scrollbar
         list_frame = tk.Frame(client_frame, bg='white')
         list_frame.pack(fill='both', expand=True)
-        
+
+        # Add header labels
+        header_frame = tk.Frame(list_frame, bg='white')
+        header_frame.pack(fill='x', pady=(5, 0))
+
+        tk.Label(header_frame, text="Client Name", font=('Segoe UI', 10, 'bold'),
+                 bg='white', width=25, anchor='w').pack(side='left', padx=(5, 0))
+        tk.Label(header_frame, text="ITC", font=('Segoe UI', 10, 'bold'),
+                 bg='white', width=8).pack(side='left')
+        tk.Label(header_frame, text="Sales", font=('Segoe UI', 10, 'bold'),
+                 bg='white', width=8).pack(side='left')
+        tk.Label(header_frame, text="Last Refresh Status", font=('Segoe UI', 10, 'bold'),
+                 bg='white', anchor='w').pack(side='left', fill='x', expand=True)
+
         canvas = tk.Canvas(list_frame, bg='white', highlightthickness=0)
         scrollbar = ttk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
         self.scrollable_frame = tk.Frame(canvas, bg='white')
-        
+
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        
+
         canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
-        
+
         # Mouse wheel scrolling function
         def _on_mousewheel(event):
             # Check if there's content to scroll
             if canvas.winfo_height() < self.scrollable_frame.winfo_reqheight():
                 canvas.yview_scroll(int(-1*(event.delta/120)), "units")
             return "break"
-        
+
         # Windows mouse wheel binding
         canvas.bind("<MouseWheel>", _on_mousewheel)
         self.scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
-        
+
         # Focus-based binding to avoid conflicts
         def _bind_wheel(event):
             canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
+
         def _unbind_wheel(event):
             canvas.unbind_all("<MouseWheel>")
-        
+
         canvas.bind("<Enter>", _bind_wheel)
         canvas.bind("<Leave>", _unbind_wheel)
-        
+
         canvas.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
-        
-        # Process button
-        self.process_btn = tk.Button(
-            main_frame,
-            text="🚀 Start Processing",
-            command=self.start_processing,
-            bg='#0078D4',
-            fg='white',
-            font=('Segoe UI', 12, 'bold'),
-            padx=40,
-            pady=15,
-            state='disabled',
-            cursor='hand2'
-        )
-        self.process_btn.pack(pady=(10, 0))
 
     def on_skip_refresh_toggle(self):
         """Handle skip refresh checkbox toggle"""
@@ -436,12 +550,12 @@ class PowerQueryExtractorApp(tk.Tk):
             logger.error(f"Scan error: {e}", exc_info=True)
     
     def display_clients(self, clients):
-        """Display client checkboxes"""
+        """Display client checkboxes with ITC/Sales selection"""
         # Clear existing
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         self.client_vars.clear()
-        
+
         if not clients:
             tk.Label(
                 self.scrollable_frame,
@@ -451,61 +565,138 @@ class PowerQueryExtractorApp(tk.Tk):
                 fg='#666666'
             ).pack(pady=20)
             return
-        
-        # Create checkboxes
+
+        # Create checkboxes for each client
         for client in clients:
-            var = tk.BooleanVar(value=True)
+            # Get last refresh status
+            itc_status, sales_status = self.get_refresh_status(client)
+
+            # Create variables for ITC and Sales checkboxes
+            itc_var = tk.BooleanVar(value=client['has_itc'])
+            sales_var = tk.BooleanVar(value=client['has_sales'])
+
             self.client_vars[client['name']] = {
-                'var': var,
-                'data': client
+                'data': client,
+                'itc_var': itc_var,
+                'sales_var': sales_var,
+                'itc_status': itc_status,
+                'sales_status': sales_status
             }
-            
+
             # Frame for each client
             client_frame = tk.Frame(self.scrollable_frame, bg='white')
             client_frame.pack(fill='x', padx=5, pady=2)
-            
-            cb = tk.Checkbutton(
+
+            # Client name
+            name_label = tk.Label(
                 client_frame,
                 text=client['name'],
-                variable=var,
                 bg='white',
                 font=('Segoe UI', 10),
+                width=30,
                 anchor='w'
             )
-            cb.pack(side='left', fill='x', expand=True)
-            
-            # Status indicators
-            if client['has_itc']:
-                tk.Label(
-                    client_frame,
-                    text="ITC ✓",
-                    bg='white',
-                    fg='#28a745',
-                    font=('Segoe UI', 9)
-                ).pack(side='left', padx=5)
-            
-            if client['has_sales']:
-                tk.Label(
-                    client_frame,
-                    text="Sales ✓",
-                    bg='white',
-                    fg='#28a745',
-                    font=('Segoe UI', 9)
-                ).pack(side='left', padx=5)
-        
+            name_label.pack(side='left')
+
+            # ITC checkbox
+            itc_cb = tk.Checkbutton(
+                client_frame,
+                variable=itc_var,
+                bg='white',
+                state='normal' if client['has_itc'] else 'disabled',
+                width=8
+            )
+            itc_cb.pack(side='left')
+
+            # Sales checkbox
+            sales_cb = tk.Checkbutton(
+                client_frame,
+                variable=sales_var,
+                bg='white',
+                state='normal' if client['has_sales'] else 'disabled',
+                width=8
+            )
+            sales_cb.pack(side='left')
+
+            # Status label
+            status_text = self.format_refresh_status(itc_status, sales_status)
+            status_label = tk.Label(
+                client_frame,
+                text=status_text,
+                bg='white',
+                font=('Segoe UI', 9),
+                fg='#666',
+                width=40,
+                anchor='w'
+            )
+            status_label.pack(side='left')
+
         # Enable process button
         if clients:
             self.process_btn.config(state='normal')
     
+    def get_refresh_status(self, client):
+        """Get last refresh status from existing files"""
+        itc_status = None
+        sales_status = None
+
+        try:
+            # Check for existing refreshed ITC files
+            itc_refreshed = list(client['latest_version'].glob("ITC_Report_*_Refreshed_*.xlsx"))
+            if itc_refreshed:
+                latest_itc = max(itc_refreshed, key=lambda x: x.stat().st_mtime)
+                mtime = datetime.fromtimestamp(latest_itc.stat().st_mtime)
+                itc_status = mtime.strftime("%Y-%m-%d %H:%M")
+
+            # Check for existing refreshed Sales files
+            sales_refreshed = list(client['latest_version'].glob("Sales_Report_*_Refreshed_*.xlsx"))
+            if sales_refreshed:
+                latest_sales = max(sales_refreshed, key=lambda x: x.stat().st_mtime)
+                mtime = datetime.fromtimestamp(latest_sales.stat().st_mtime)
+                sales_status = mtime.strftime("%Y-%m-%d %H:%M")
+        except:
+            pass
+
+        return itc_status, sales_status
+
+    def format_refresh_status(self, itc_status, sales_status):
+        """Format refresh status for display"""
+        if itc_status and sales_status:
+            return f"ITC: {itc_status} | Sales: {sales_status}"
+        elif itc_status:
+            return f"ITC: {itc_status} | Sales: Never"
+        elif sales_status:
+            return f"ITC: Never | Sales: {sales_status}"
+        else:
+            return "Never refreshed"
+
     def select_all_clients(self):
-        """Select all clients"""
+        """Select all clients and reports"""
         for client_data in self.client_vars.values():
-            client_data['var'].set(True)
-    
+            if client_data['data']['has_itc']:
+                client_data['itc_var'].set(True)
+            if client_data['data']['has_sales']:
+                client_data['sales_var'].set(True)
+
     def deselect_all_clients(self):
-        """Deselect all clients"""
+        """Deselect all clients and reports"""
         for client_data in self.client_vars.values():
-            client_data['var'].set(False)
+            client_data['itc_var'].set(False)
+            client_data['sales_var'].set(False)
+
+    def select_itc_only(self):
+        """Select only ITC reports"""
+        for client_data in self.client_vars.values():
+            if client_data['data']['has_itc']:
+                client_data['itc_var'].set(True)
+            client_data['sales_var'].set(False)
+
+    def select_sales_only(self):
+        """Select only Sales reports"""
+        for client_data in self.client_vars.values():
+            client_data['itc_var'].set(False)
+            if client_data['data']['has_sales']:
+                client_data['sales_var'].set(True)
     
     def on_tab_changed(self, event):
         """Handle tab change"""
@@ -515,26 +706,37 @@ class PowerQueryExtractorApp(tk.Tk):
             self.update_idletasks()
     
     def start_processing(self):
-        """Start processing selected clients"""
-        selected = [
-            data['data'] for name, data in self.client_vars.items()
-            if data['var'].get()
-        ]
-        
+        """Start processing selected clients and reports"""
+        selected = []
+
+        for name, data in self.client_vars.items():
+            process_itc = data['itc_var'].get()
+            process_sales = data['sales_var'].get()
+
+            if process_itc or process_sales:
+                client_info = data['data'].copy()
+                client_info['process_itc'] = process_itc
+                client_info['process_sales'] = process_sales
+                selected.append(client_info)
+
         if not selected:
-            messagebox.showwarning("No Selection", "Please select at least one client")
+            messagebox.showwarning("No Selection", "Please select at least one report to process")
             return
-        
+
+        # Pass wait time and suffix to processor
+        self.processor.wait_time = self.wait_time_var.get()
+        self.processor.suffix_pattern = self.suffix_pattern_var.get()
+
         # Switch to processing tab
         self.notebook.select(self.processing_tab)
-        
+
         # Disable process button
         self.process_btn.config(state='disabled')
         self.is_processing = True
-        
+
         # Clear log
         self.log_text.delete(1.0, tk.END)
-        
+
         # Start processing thread
         thread = threading.Thread(
             target=self._process_clients_thread,
@@ -544,44 +746,59 @@ class PowerQueryExtractorApp(tk.Tk):
         thread.start()
     
     def _process_clients_thread(self, selected_clients):
-        """Process clients (runs in thread)"""
+        """Process clients with selective report processing"""
         try:
             self.log_message("=" * 60, 'info')
             self.log_message("PROCESSING STARTED", 'info')
+            self.log_message(f"Wait Time: {self.wait_time_var.get()} seconds", 'info')
+            self.log_message(f"File Suffix: {self.suffix_pattern_var.get()}", 'info')
             self.log_message("=" * 60, 'info')
-            
+
             results = []
             total = len(selected_clients)
-            
+
             for i, client in enumerate(selected_clients):
                 client_name = client['name']
-                self.log_message(f"\n📋 Processing {client_name}...", 'info')
-                
+
+                # Show what will be processed
+                reports_to_process = []
+                if client.get('process_itc'):
+                    reports_to_process.append('ITC')
+                if client.get('process_sales'):
+                    reports_to_process.append('Sales')
+
+                self.log_message(f"\n📋 Processing {client_name} - Reports: {', '.join(reports_to_process)}", 'info')
+
                 # Update progress
                 progress = (i / total) * 100
                 self.update_progress(progress, f"Processing {client_name}")
-                
+
                 # Process reports
                 result = self.processor.process_client(client, log_callback=self.log_message)
                 results.append(result)
-                
+
                 # Log results
-                itc_status = result['itc']['status']
-                sales_status = result['sales']['status']
-                
-                if itc_status['success']:
-                    self.log_message(f"  ✅ ITC Report - Refreshed successfully", 'success')
+                if client.get('process_itc'):
+                    itc_status = result['itc']['status']
+                    if itc_status['success']:
+                        self.log_message(f"  ✅ ITC Report - Refreshed successfully", 'success')
+                    else:
+                        self.log_message(f"  ⚠️ ITC Report - {itc_status.get('error', 'Error occurred')}", 'warning')
+                        if result['itc']['data']:
+                            self.log_message(f"     (Data extracted despite error)", 'info')
                 else:
-                    self.log_message(f"  ⚠️ ITC Report - {itc_status.get('error', 'Error occurred')}", 'warning')
-                    if result['itc']['data']:
-                        self.log_message(f"     (Data extracted despite error)", 'info')
-                
-                if sales_status['success']:
-                    self.log_message(f"  ✅ Sales Report - Refreshed successfully", 'success')
+                    self.log_message(f"  ⏭️ ITC Report - Skipped", 'info')
+
+                if client.get('process_sales'):
+                    sales_status = result['sales']['status']
+                    if sales_status['success']:
+                        self.log_message(f"  ✅ Sales Report - Refreshed successfully", 'success')
+                    else:
+                        self.log_message(f"  ⚠️ Sales Report - {sales_status.get('error', 'Error occurred')}", 'warning')
+                        if result['sales']['data']:
+                            self.log_message(f"     (Data extracted despite error)", 'info')
                 else:
-                    self.log_message(f"  ⚠️ Sales Report - {sales_status.get('error', 'Error occurred')}", 'warning')
-                    if result['sales']['data']:
-                        self.log_message(f"     (Data extracted despite error)", 'info')
+                    self.log_message(f"  ⏭️ Sales Report - Skipped", 'info')
             
             # Create consolidated report in Level 1 folder
             self.log_message("\n📊 Creating consolidated report...", 'info')

@@ -20,10 +20,12 @@ logger = logging.getLogger(__name__)
 
 class ReportProcessor:
     """Process Excel reports with Power Query refresh"""
-    
+
     def __init__(self):
         self.excel_instance = None
-        self.log_callback = None  # Add this
+        self.log_callback = None
+        self.wait_time = 10  # Default wait time in seconds
+        self.suffix_pattern = "_Refreshed_{timestamp}"  # Default suffix pattern
     
     def _log(self, message, level='info'):
         """Log to both file and GUI"""
@@ -35,16 +37,36 @@ class ReportProcessor:
             self.log_callback(f"  {message}", level)
     
     def process_client(self, client_data, log_callback=None):
-        """Process both ITC and Sales reports for a client"""
+        """Process selected reports for a client"""
         self.log_callback = log_callback  # Store the callback
-        
+
         results = {
             'client': client_data['name'],
             'timestamp': datetime.now(),
-            'itc': self._process_report(client_data, 'ITC'),
-            'sales': self._process_report(client_data, 'Sales')
+            'itc': None,
+            'sales': None
         }
-        
+
+        # Process ITC if selected
+        if client_data.get('process_itc', True):  # Default to True for backward compatibility
+            results['itc'] = self._process_report(client_data, 'ITC')
+        else:
+            results['itc'] = {
+                'status': {'success': False, 'error': 'Not selected for processing'},
+                'data': {},
+                'extracted_values': {}
+            }
+
+        # Process Sales if selected
+        if client_data.get('process_sales', True):  # Default to True for backward compatibility
+            results['sales'] = self._process_report(client_data, 'Sales')
+        else:
+            results['sales'] = {
+                'status': {'success': False, 'error': 'Not selected for processing'},
+                'data': {},
+                'extracted_values': {}
+            }
+
         return results
     
     def _process_report(self, client_data, report_type):
@@ -65,10 +87,11 @@ class ReportProcessor:
                 }
             
             original_file = report_files[0]
-            
-            # Create refreshed copy
+
+            # Create refreshed copy with custom suffix
             timestamp = datetime.now().strftime("%d%m%y_%H%M")
-            refreshed_file = original_file.parent / f"{original_file.stem}_Refreshed_{timestamp}.xlsx"
+            suffix = self.suffix_pattern.replace("{timestamp}", timestamp)
+            refreshed_file = original_file.parent / f"{original_file.stem}{suffix}.xlsx"
             
             # ADD THE NEW CODE HERE (notice the indentation - 3 levels):
             # Check if we should skip refresh
@@ -230,11 +253,11 @@ class ReportProcessor:
             
             # Rest of your code remains same...
                 
-                self._log("Waiting for Power Query refresh to complete...")
-                
-                # WAIT 7 SECONDS AS REQUESTED
-                for i in range(10):
-                    self._log(f"  Waiting... {i+1}/10 seconds")
+                self._log(f"Waiting for Power Query refresh to complete... ({self.wait_time} seconds)")
+
+                # Use configurable wait time
+                for i in range(self.wait_time):
+                    self._log(f"  Waiting... {i+1}/{self.wait_time} seconds")
                     time.sleep(1)
                 
                 # Check for any error windows
@@ -259,9 +282,10 @@ class ReportProcessor:
                 
                 # Additional wait time for complex queries
                 self._log("Giving additional time for complex queries...")
-                for i in range(10):
+                extended_wait = max(10, self.wait_time)  # At least 10 seconds for complex queries
+                for i in range(extended_wait):
                     if i % 2 == 0:
-                        self._log(f"  Extended wait... {i}/10 seconds")
+                        self._log(f"  Extended wait... {i}/{extended_wait} seconds")
                     time.sleep(1)
                 
                 # Final error check
