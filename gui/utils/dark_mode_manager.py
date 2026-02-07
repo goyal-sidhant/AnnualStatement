@@ -118,13 +118,13 @@ class DarkModeManager:
         """Recursively apply theme to all widgets"""
         try:
             widget_class = widget.winfo_class()
-            
+
             if is_dark:
                 self._apply_dark_to_widget(widget, widget_class)
             else:
                 self._restore_widget_colors(widget, widget_class)
-            
-        except:
+
+        except tk.TclError:
             pass
         
         # Process children
@@ -186,7 +186,7 @@ class DarkModeManager:
                 widget.configure(bg='white', fg='black', insertbackground='black')
             elif widget_class in ['Checkbutton', 'Radiobutton']:
                 widget.configure(bg='white', fg='black', selectcolor='white')
-        except:
+        except tk.TclError:
             pass
     
     def update_tree_tags(self, tree_widget, is_dark_mode=None):

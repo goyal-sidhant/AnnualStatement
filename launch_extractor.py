@@ -1,30 +1,28 @@
 """
-Standalone launcher for Power Query Extractor
-Run this file separately after GST Organizer processing
+Convenience launcher - opens the main app on the Extract & Refresh tab (Tab 4).
 """
 
 import sys
 import os
 
-# Add current directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 
 def main():
     try:
-        from power_query_extractor.extractor_main import PowerQueryExtractor
-        
-        # Launch extractor - it will auto-load from cache
-        extractor = PowerQueryExtractor()
-        extractor.run()
-        
+        from PyQt5.QtWidgets import QApplication
+        from gui.pyqt_main_window import GSTOrganizerWindow
+
+        app = QApplication(sys.argv)
+        window = GSTOrganizerWindow()
+        window.tabs.setCurrentIndex(3)  # Switch to Tab 4 (Extract & Refresh)
+        window.show()
+        sys.exit(app.exec_())
+
     except Exception as e:
-        import tkinter as tk
-        from tkinter import messagebox
-        
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror("Error", f"Failed to launch: {str(e)}")
-        raise
+        print(f"Failed to launch: {e}")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

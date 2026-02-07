@@ -72,7 +72,7 @@ class GSTOrganizerApp:
         self.style = ttk.Style()
         try:
             self.style.theme_use('clam')
-        except:
+        except tk.TclError:
             pass
     
     def setup_variables(self):
@@ -163,7 +163,7 @@ class GSTOrganizerApp:
                 for widget in self.title_bar.title_frame.winfo_children():
                     try:
                         widget.configure(bg=GUI_CONFIG['colors']['primary'])
-                    except:
+                    except tk.TclError:
                         pass
         
         # Update tree tags

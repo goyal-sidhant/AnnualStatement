@@ -1,5 +1,8 @@
-# GST File Organizer v3.0 Requirements
+# GST File Organizer v4.0 Requirements
 # Python 3.7 or higher required
+
+# GUI framework
+PyQt5>=5.15.0
 
 # Core dependency for Excel operations
 openpyxl>=3.1.2
@@ -7,7 +10,5 @@ openpyxl>=3.1.2
 # Optional but recommended for better performance
 lxml>=4.9.0
 
-# Development dependencies (optional)
-# pytest>=7.0.0
-# black>=23.0.0
-# pylint>=2.17.0
+# Windows-only: Excel COM automation for Power Query
+# pywin32>=306

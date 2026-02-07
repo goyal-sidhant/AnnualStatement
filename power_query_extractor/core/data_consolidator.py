@@ -70,18 +70,6 @@ class DataConsolidator:
                     ws.merge_cells('A1:C1')
                     start_row = 3
 
-                # Build headers (now starting from dynamic row)
-                headers = ['Client Name', 'Successfully Run']
-                # ... rest of the code
-
-                # Write headers (update row number)
-                for col, header in enumerate(headers, 1):
-                    cell = ws.cell(row=start_row, column=col, value=header)  # Use start_row instead of 3
-                    # ... rest of header formatting
-
-                # Write data for each client (update row number)
-                current_row = start_row + 1  # Instead of 4
-                
                 # Build headers
                 headers = ['Client Name', 'Successfully Run']
                 
@@ -198,7 +186,7 @@ class DataConsolidator:
             try:
                 num1 = float(value1) if value1 else 0
                 num2 = float(value2) if value2 else 0
-            except:
+            except (TypeError, ValueError):
                 return 'Error'
             
             # Perform calculation
@@ -219,7 +207,6 @@ class DataConsolidator:
     
     def _create_summary_sheet(self, wb, results):
         """Create summary sheet with extraction statistics"""
-        # ADD THIS LINE:
         from ..config.cell_mappings import EXTRACTION_CONFIG
 
         ws = wb.create_sheet("Summary", 0)  # Insert at beginning
@@ -376,7 +363,6 @@ class DataConsolidator:
             ws[f'B{row}'] = f"Status: {'Success' if itc_data['status']['success'] else 'Failed'}"
             row += 1
 
-            # ADD THESE LINES
             if itc_data['status'].get('validation_message'):
                 ws[f'B{row}'] = f"Validation: {itc_data['status']['validation_message']}"
                 row += 1
@@ -399,7 +385,6 @@ class DataConsolidator:
             ws[f'B{row}'] = f"Status: {'Success' if sales_data['status']['success'] else 'Failed'}"
             row += 1
 
-            # ADD THESE LINES
             if sales_data['status'].get('validation_message'):
                 ws[f'B{row}'] = f"Validation: {sales_data['status']['validation_message']}"
                 row += 1
@@ -424,7 +409,7 @@ class DataConsolidator:
                     if cell.value:
                         cell_value = str(cell.value)
                         max_length = max(max_length, len(cell_value))
-                except:
+                except (TypeError, ValueError):
                     pass
             
             adjusted_width = min(max_length + 2, 50)

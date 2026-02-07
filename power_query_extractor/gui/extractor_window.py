@@ -654,8 +654,8 @@ class PowerQueryExtractorApp(tk.Tk):
                 latest_sales = max(sales_refreshed, key=lambda x: x.stat().st_mtime)
                 mtime = datetime.fromtimestamp(latest_sales.stat().st_mtime)
                 sales_status = mtime.strftime("%Y-%m-%d %H:%M")
-        except:
-            pass
+        except (OSError, ValueError) as e:
+            logger.warning(f"Error checking refresh status: {e}")
 
         return itc_status, sales_status
 

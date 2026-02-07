@@ -93,7 +93,6 @@ class ReportProcessor:
             suffix = self.suffix_pattern.replace("{timestamp}", timestamp)
             refreshed_file = original_file.parent / f"{original_file.stem}{suffix}.xlsx"
             
-            # ADD THE NEW CODE HERE (notice the indentation - 3 levels):
             # Check if we should skip refresh
             from ..config.cell_mappings import EXTRACTION_OPTIONS
             skip_refresh = EXTRACTION_OPTIONS.get('skip_refresh', False)
@@ -137,7 +136,7 @@ class ReportProcessor:
                         # For other errors, re-raise
                         raise
             
-            # ADD THIS: Wait for file to be fully released
+            # Wait for file to be fully released
             self._log("Waiting for file to be released...")
             time.sleep(3)  # Give Excel time to fully release the file
             
@@ -164,8 +163,6 @@ class ReportProcessor:
             }
     
     def _refresh_power_query_simple(self, excel_file):
-        # TEST: Add this line to check if logging works
-        print(f"PROCESSING: {excel_file.name}")  # This will show in console
         """Simple refresh approach with proper error handling"""
         excel = None
         wb = None
@@ -225,7 +222,7 @@ class ReportProcessor:
                         shell.AppActivate(excel.Caption)
                         activated = True
                         break
-                    except:
+                    except Exception:
                         logger.warning(f"Could not activate window, attempt {attempt + 1}/3")
                         time.sleep(1)
                 
@@ -338,12 +335,7 @@ class ReportProcessor:
                     'success': False,
                     'error': str(e)
                 }
-            
-            return {
-                'success': True,
-                'error': None
-            }
-                
+
         except Exception as e:
             logger.error(f"❌ Excel error: {e}", exc_info=True)
             return {
@@ -357,22 +349,22 @@ class ReportProcessor:
                 try:
                     wb.Close(SaveChanges=False)
                     self._log("  Workbook closed")
-                except:
+                except Exception:
                     pass
-            
+
             if excel:
                 try:
                     excel.Quit()
                     self._log("  Excel quit")
-                except:
+                except Exception:
                     pass
-            
+
             try:
                 pythoncom.CoUninitialize()
                 self._log("  COM uninitialized")
-            except:
+            except Exception:
                 pass
-    
+
     def _find_error_window(self):
         """Find Excel error dialog window"""
         def callback(hwnd, windows):
@@ -400,15 +392,15 @@ class ReportProcessor:
                         if class_name in ['#32770', 'NUIDialog', 'bosa_sdm_msword']:
                             windows.append(hwnd)
                             logger.debug(f"Found potential error window: {window_text}")
-            except:
+            except Exception:
                 pass
             return True
-        
+
         windows = []
         try:
             win32gui.EnumWindows(callback, windows)
             return windows[0] if windows else None
-        except:
+        except Exception:
             return None
     
     def _get_window_text(self, hwnd):
@@ -427,7 +419,7 @@ class ReportProcessor:
                         child_text = win32gui.GetWindowText(child_hwnd)
                         if child_text and len(child_text) > 5:
                             text_list.append(child_text)
-                except:
+                except Exception:
                     pass
                 return True
             
@@ -467,7 +459,7 @@ class ReportProcessor:
                             win32gui.SendMessage(child_hwnd, win32con.BM_CLICK, 0, 0)
                             clicked = True
                             return False  # Stop enumeration
-                except:
+                except Exception:
                     pass
                 return True
             
@@ -580,18 +572,18 @@ class ReportProcessor:
                 try:
                     wb.Close(SaveChanges=False)
                     self._log("  ✓ Workbook closed")
-                except:
+                except Exception:
                     pass
             if excel:
                 try:
                     excel.Quit()
                     self._log("  ✓ Excel quit")
-                except:
+                except Exception:
                     pass
             try:
                 pythoncom.CoUninitialize()
                 self._log("  ✓ COM uninitialized")
-            except:
+            except Exception:
                 pass
 
     def _validate_refresh(self, wb):
@@ -720,7 +712,7 @@ class ReportProcessor:
                 if short_path != str(file_path):
                     self._log(f"Using short path: ...{short_path[-50:]}")
                     return excel.Workbooks.Open(short_path)
-            except:
+            except Exception:
                 self._log("Could not get short path")
             
             # Last resort - remove extended path prefix if we added it

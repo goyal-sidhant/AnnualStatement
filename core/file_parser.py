@@ -12,7 +12,7 @@ from collections import defaultdict
 from utils.constants import FILE_PATTERNS, EXPECTED_FILE_TYPES
 from utils.helpers import (
     validate_excel_file, get_file_info, find_excel_files,
-    validate_client_name, format_size, get_state_code  # ADD THIS
+    validate_client_name, format_size, get_state_code
     
 )
 
@@ -75,10 +75,6 @@ class FileParser:
             'metadata': {}
         }
         
-        # Debug log for Sales files
-        if 'sales' in filename.lower():
-            logger.info(f"[DEBUG] Parsing potential Sales file: {filename}")
-        
         # Try each pattern
         for pattern_name, pattern_info in self.patterns.items():
             match = pattern_info['pattern'].match(filename)
@@ -120,12 +116,6 @@ class FileParser:
                         result['warnings'].append(f"State name issue: {state_error}")
                 
                 logger.debug(f"Parsed {filename} as {pattern_name}")
-                
-                # Special debug for Sales patterns
-                if 'Sales' in pattern_name:
-                    logger.info(f"[DEBUG] Sales pattern matched: {pattern_name}")
-                    logger.info(f"[DEBUG] Extracted data: client={result['client']}, state={result['state']}, type={result['type']}")
-                
                 break
         
         if not result['parsed']:
@@ -244,10 +234,6 @@ class FileParser:
         client['file_count'] += 1
         
         logger.debug(f"Added {file_data['name']} to {client_key} as {file_type}")
-        
-        # Special debug for Sales files
-        if 'Sales' in file_type:
-            logger.info(f"[DEBUG] Sales file detected: {file_data['name']} -> Type: {file_type}")
     
     def _analyze_client_completeness(self):
         """Analyze which files are missing for each client"""
