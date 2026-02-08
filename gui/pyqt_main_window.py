@@ -123,9 +123,9 @@ class GSTOrganizerWindow(QMainWindow):
         self.setup_view.scan_requested.connect(self._on_scan_requested)
         self.setup_view.rescan_requested.connect(self._on_scan_requested)
 
-        # Scan controller -> validation view
-        self.scan_controller.scan_started.connect(
-            lambda: self.status_bar.showMessage("Scanning files..."))
+        # Scan controller -> setup view log + validation view
+        self.scan_controller.scan_started.connect(self._on_scan_started)
+        self.scan_controller.scan_progress.connect(self._on_scan_progress)
         self.scan_controller.scan_completed.connect(self._on_scan_completed)
         self.scan_controller.scan_error.connect(self._on_scan_error)
 
@@ -183,6 +183,9 @@ class GSTOrganizerWindow(QMainWindow):
         self.extraction_view.suffix_input.setText(self.settings.pq_suffix_pattern)
         self.extraction_view.chk_skip_refresh.setChecked(self.settings.pq_skip_refresh)
 
+        # Populate extraction tab from all previously processed clients
+        self._populate_extraction_from_history()
+
     # ── Settings ──────────────────────────────────────────────
 
     def _collect_settings(self) -> AppSettings:
@@ -219,36 +222,64 @@ class GSTOrganizerWindow(QMainWindow):
             return
 
         self._save_settings()
+        self.setup_view.clear_scan_log()
+        self.setup_view.log_scan_message(f"Scanning: {folder}", 'info')
+        self.setup_view.btn_scan.setEnabled(False)
         self.scan_controller.scan_files(folder)
 
+    def _on_scan_started(self):
+        self.status_bar.showMessage("Scanning files...")
+        self.setup_view.log_scan_message("Scan started...", 'info')
+
+    def _on_scan_progress(self, current, total, message):
+        self.setup_view.log_scan_message(message, 'normal')
+        if total > 0:
+            pct = int(current / total * 100)
+            self.status_bar.showMessage(f"Scanning... {pct}% ({current}/{total})")
+
     def _on_scan_completed(self, result: ScanResult):
-        self.scan_result = result
+        try:
+            self.scan_result = result
 
-        # Populate validation view
-        self.validation_view.populate_clients(result.client_data, self.run_history)
+            # Log to setup view
+            total = result.total_files
+            clients = result.total_clients
+            complete = result.complete_clients
+            variations = len(result.variations)
 
-        # Build summary HTML
-        total = result.total_files
-        clients = result.total_clients
-        complete = result.complete_clients
-        variations = len(result.variations)
+            self.setup_view.log_scan_message("", 'normal')
+            self.setup_view.log_scan_message(f"Scan complete!", 'success')
+            self.setup_view.log_scan_message(f"  Files found: {total}", 'success')
+            self.setup_view.log_scan_message(f"  Clients: {clients} ({complete} complete)", 'success')
+            if variations:
+                self.setup_view.log_scan_message(f"  Variations/issues: {variations}", 'warning')
+            self.setup_view.btn_scan.setEnabled(True)
 
-        summary_html = f"""
-        <h3>Scan Summary</h3>
-        <p><b>Total files:</b> {total}</p>
-        <p><b>Clients found:</b> {clients} ({complete} complete)</p>
-        <p><b>Variations/issues:</b> {variations}</p>
-        """
-        self.validation_view.set_summary(summary_html)
+            # Populate validation view
+            self.validation_view.populate_clients(result.client_data, self.run_history)
 
-        # Enable rescan
-        self.setup_view.btn_rescan.setEnabled(True)
+            summary_html = f"""
+            <h3>Scan Summary</h3>
+            <p><b>Total files:</b> {total}</p>
+            <p><b>Clients found:</b> {clients} ({complete} complete)</p>
+            <p><b>Variations/issues:</b> {variations}</p>
+            """
+            self.validation_view.set_summary(summary_html)
 
-        # Switch to validation tab
-        self.tabs.setCurrentIndex(1)
-        self.status_bar.showMessage(f"Scan complete: {clients} clients, {total} files")
+            # Enable rescan
+            self.setup_view.btn_rescan.setEnabled(True)
+
+            # Switch to validation tab
+            self.tabs.setCurrentIndex(1)
+            self.status_bar.showMessage(f"Scan complete: {clients} clients, {total} files")
+        except Exception as e:
+            logger.error(f"Error in scan completion handler: {e}", exc_info=True)
+            self.setup_view.log_scan_message(f"Error displaying results: {e}", 'error')
+            self.setup_view.btn_scan.setEnabled(True)
 
     def _on_scan_error(self, error_msg):
+        self.setup_view.log_scan_message(f"SCAN ERROR: {error_msg}", 'error')
+        self.setup_view.btn_scan.setEnabled(True)
         QMessageBox.critical(self, "Scan Error", error_msg)
         self.status_bar.showMessage("Scan failed")
 
@@ -311,8 +342,8 @@ class GSTOrganizerWindow(QMainWindow):
         self.cache_manager.save_run_history(self.run_history)
         self._save_settings()
 
-        # Auto-populate extraction tab with processed clients
-        self._populate_extraction_from_results(summary_data)
+        # Refresh extraction tab with ALL processed clients (including this run)
+        self._populate_extraction_from_history()
 
         # Show completion
         successful = summary_data.get('successful_clients', 0)
@@ -340,16 +371,40 @@ class GSTOrganizerWindow(QMainWindow):
 
     # ── Extraction ────────────────────────────────────────────
 
-    def _populate_extraction_from_results(self, summary_data):
-        """Auto-populate extraction tab from processing results"""
+    def _populate_extraction_from_history(self):
+        """Populate extraction tab from ALL processed clients in run history"""
         clients = []
-        for client_info in summary_data.get('clients', []):
+        for client_key, records in self.run_history.client_history.items():
+            if not records:
+                continue
+            latest = records[-1]
+
+            name = latest.get('client_name', '')
+            state = latest.get('state', '')
+            display_name = f"{name} - {state}" if name and state else client_key
+
+            # Find latest version folder from the output_folder (level2)
+            output_folder = latest.get('output_folder', '')
+            version_folder = ''
+            if output_folder and Path(output_folder).is_dir():
+                try:
+                    for sub in sorted(Path(output_folder).iterdir(), reverse=True):
+                        if sub.is_dir():
+                            version_folder = str(sub)
+                            break
+                except OSError:
+                    pass
+
             clients.append({
-                'name': f"{client_info['client']} - {client_info['state']}",
-                'client_key': f"{client_info['client']}-{client_info['state']}",
-                'has_itc': client_info.get('itc_report_created', False),
-                'has_sales': client_info.get('sales_report_created', False),
+                'name': display_name,
+                'client_key': client_key,
+                'version_folder': version_folder,
+                'has_itc': latest.get('itc_report_created', False),
+                'has_sales': latest.get('sales_report_created', False),
             })
+
+        # Sort by client name for consistent display
+        clients.sort(key=lambda c: c['name'])
         self.extraction_view.populate_clients(clients, self.run_history)
 
     def _on_start_extraction(self):
@@ -364,6 +419,14 @@ class GSTOrganizerWindow(QMainWindow):
 
         # Build client data for extraction (needs file paths)
         extraction_clients = self._build_extraction_clients(selected)
+
+        if not extraction_clients:
+            QMessageBox.warning(
+                self, "Warning",
+                "Could not find output folders for the selected clients.\n\n"
+                "Make sure you have processed these clients first (Step 3)."
+            )
+            return
 
         self.extraction_controller.start_extraction(
             clients=extraction_clients,
@@ -381,19 +444,21 @@ class GSTOrganizerWindow(QMainWindow):
         for sel in selected:
             key = sel['client_key']
             name = sel['name']
+            version_folder = sel.get('version_folder', '')
 
-            # Find the latest version folder for this client
-            latest_version = None
-            for folder in sorted(target.rglob('*'), reverse=True):
-                if folder.is_dir() and key in folder.name:
-                    # Look for version subfolder
-                    for sub in sorted(folder.iterdir(), reverse=True):
-                        if sub.is_dir():
-                            latest_version = sub
-                            break
-                    if latest_version:
-                        break
+            # Use stored version folder path if available
+            if version_folder and Path(version_folder).is_dir():
+                clients.append({
+                    'name': name,
+                    'client_key': key,
+                    'latest_version': Path(version_folder),
+                    'process_itc': sel.get('process_itc', True),
+                    'process_sales': sel.get('process_sales', True),
+                })
+                continue
 
+            # Fallback: search for the client's folder in the target directory
+            latest_version = self._find_latest_version_folder(target, key)
             if latest_version:
                 clients.append({
                     'name': name,
@@ -406,6 +471,26 @@ class GSTOrganizerWindow(QMainWindow):
                 logger.warning(f"Could not find version folder for {key}")
 
         return clients
+
+    def _find_latest_version_folder(self, target: Path, client_key: str):
+        """Search for the latest version folder for a client key"""
+        try:
+            # Search only top-level subfolders (Level 1 date folders)
+            for level1 in sorted(target.iterdir(), reverse=True):
+                if not level1.is_dir():
+                    continue
+                # Look for client folder inside level1
+                for level2 in sorted(level1.iterdir(), reverse=True):
+                    if not level2.is_dir():
+                        continue
+                    if client_key in level2.name:
+                        # Find latest version subfolder
+                        for version in sorted(level2.iterdir(), reverse=True):
+                            if version.is_dir():
+                                return version
+        except OSError as e:
+            logger.warning(f"Error searching for {client_key}: {e}")
+        return None
 
     def _on_extraction_completed(self, results):
         self.extraction_view.set_extraction_state(False)

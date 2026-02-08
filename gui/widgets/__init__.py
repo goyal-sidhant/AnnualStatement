@@ -1,7 +1,7 @@
 # gui/widgets/__init__.py
 """GUI Widgets Package"""
 
-from .collapsible_frame import CollapsibleFrame
-from .title_bar import TitleBar
+from .collapsible_group import CollapsibleGroup
+from .colored_section import ColoredSection
 
-__all__ = ['CollapsibleFrame', 'TitleBar']
+__all__ = ['CollapsibleGroup', 'ColoredSection']

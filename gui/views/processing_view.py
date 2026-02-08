@@ -4,10 +4,10 @@ Processing View - Tab 3: Progress bar, start/stop, and log output.
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QTextEdit
+    QProgressBar, QTextEdit, QFrame
 )
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QTextCursor, QColor
+from PyQt5.QtGui import QTextCursor
 
 
 class ProcessingView(QWidget):
@@ -23,34 +23,85 @@ class ProcessingView(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
-        # Progress section
-        progress_layout = QHBoxLayout()
+        # Header banner
+        header = QLabel("FILE PROCESSING")
+        header.setAlignment(Qt.AlignCenter)
+        header.setStyleSheet("""
+            QLabel {
+                background-color: #107C10;
+                color: white;
+                font-size: 13pt;
+                font-weight: bold;
+                padding: 8px;
+                border-radius: 4px;
+            }
+        """)
+        layout.addWidget(header)
+
+        # Status label
+        self.status_label = QLabel("Ready to process")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #323130;
+                font-size: 11pt;
+                font-weight: bold;
+                padding: 4px 0px;
+            }
+        """)
+        layout.addWidget(self.status_label)
+
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
-
-        progress_layout.addWidget(self.progress_bar)
-        layout.addLayout(progress_layout)
-
-        # Status label
-        self.status_label = QLabel("Ready to process")
-        layout.addWidget(self.status_label)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                text-align: center;
+                height: 26px;
+                font-weight: bold;
+                background: #f0f0f0;
+            }
+            QProgressBar::chunk {
+                background-color: #107C10;
+                border-radius: 3px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
 
         # Control buttons
         btn_layout = QHBoxLayout()
 
         self.btn_start = QPushButton("Start Processing")
-        self.btn_start.setObjectName("primary")
+        self.btn_start.setCursor(Qt.PointingHandCursor)
+        self.btn_start.setStyleSheet("""
+            QPushButton {
+                background: #107C10;
+                color: white;
+                font-size: 11pt;
+                font-weight: bold;
+                padding: 8px 24px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background: #0e6b0e; }
+            QPushButton:pressed { background: #0c5c0c; }
+            QPushButton:disabled { background: #a0a0a0; }
+        """)
         self.btn_start.clicked.connect(self.start_requested.emit)
 
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setObjectName("danger")
+        self.btn_stop.setCursor(Qt.PointingHandCursor)
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.stop_requested.emit)
 
         self.btn_clear_log = QPushButton("Clear Log")
+        self.btn_clear_log.setCursor(Qt.PointingHandCursor)
         self.btn_clear_log.clicked.connect(self._clear_log)
 
         btn_layout.addWidget(self.btn_start)
@@ -60,7 +111,7 @@ class ProcessingView(QWidget):
 
         layout.addLayout(btn_layout)
 
-        # Log output
+        # Log output (dark terminal style)
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setStyleSheet("""
@@ -69,6 +120,9 @@ class ProcessingView(QWidget):
                 color: #d4d4d4;
                 font-family: "Consolas", "Courier New", monospace;
                 font-size: 9pt;
+                border: 2px solid #3c3c3c;
+                border-radius: 4px;
+                padding: 8px;
             }
         """)
         layout.addWidget(self.log_text)

@@ -136,6 +136,8 @@ class ProcessingWorker(QObject):
                 summary_data['clients'].append({
                     'client': client_info['client'],
                     'state': client_info['state'],
+                    'client_key': client_key,
+                    'version_folder': str(folders.get('version', '')),
                     'status': 'Success',
                     'file_count': client_info['file_count'],
                     'missing_files': client_info['missing_files'],

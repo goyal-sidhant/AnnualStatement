@@ -247,20 +247,20 @@ def validate_excel_file(file_path: Union[str, Path]) -> bool:
         return False
 
 def find_excel_files(folder: Union[str, Path]) -> List[Path]:
-    """Find all Excel files in folder"""
+    """Find all Excel files in folder (by extension only, no I/O validation)"""
     try:
         folder_path = Path(folder)
         excel_files = []
-        
+
         patterns = ['*.xlsx', '*.xls', '*.xlsm']
         for pattern in patterns:
             excel_files.extend(folder_path.glob(pattern))
-        
-        # Filter valid Excel files only
-        valid_files = [f for f in excel_files if validate_excel_file(f)]
-        
-        return sorted(valid_files)
-        
+
+        # Skip temp files (~$...) that Excel creates while open
+        excel_files = [f for f in excel_files if not f.name.startswith('~$')]
+
+        return sorted(excel_files)
+
     except Exception as e:
         logger.error(f"Error finding Excel files in {folder}: {e}")
         return []

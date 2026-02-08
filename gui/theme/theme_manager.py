@@ -6,6 +6,22 @@ Uses QSS stylesheets instead of recursive widget walking.
 from PyQt5.QtWidgets import QApplication
 
 
+# Color palette matching the old Tkinter UI
+COLORS = {
+    'primary': '#0078D4',
+    'primary_hover': '#006cbd',
+    'primary_pressed': '#005a9e',
+    'success': '#107C10',
+    'success_hover': '#0e6b0e',
+    'warning': '#FF8C00',
+    'warning_hover': '#e07d00',
+    'danger': '#D83B01',
+    'danger_hover': '#c43400',
+    'info': '#0099BC',
+    'info_hover': '#0088a8',
+}
+
+
 LIGHT_STYLESHEET = """
 QMainWindow {
     background-color: #f0f0f0;
@@ -92,6 +108,39 @@ QPushButton#danger {
 }
 QPushButton#danger:hover {
     background: #c43400;
+}
+QPushButton#success {
+    background: #107C10;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#success:hover {
+    background: #0e6b0e;
+}
+QPushButton#success:pressed {
+    background: #0c5c0c;
+}
+QPushButton#warning {
+    background: #FF8C00;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#warning:hover {
+    background: #e07d00;
+}
+QPushButton#warning:pressed {
+    background: #c46e00;
+}
+QPushButton#info {
+    background: #0099BC;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#info:hover {
+    background: #0088a8;
 }
 QTreeView {
     border: 1px solid #cccccc;
@@ -242,6 +291,39 @@ QPushButton#danger {
 }
 QPushButton#danger:hover {
     background: #c43400;
+}
+QPushButton#success {
+    background: #107C10;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#success:hover {
+    background: #0e6b0e;
+}
+QPushButton#success:pressed {
+    background: #0c5c0c;
+}
+QPushButton#warning {
+    background: #FF8C00;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#warning:hover {
+    background: #e07d00;
+}
+QPushButton#warning:pressed {
+    background: #c46e00;
+}
+QPushButton#info {
+    background: #0099BC;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#info:hover {
+    background: #0088a8;
 }
 QTreeView {
     border: 1px solid #3c3c3c;

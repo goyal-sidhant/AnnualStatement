@@ -25,6 +25,22 @@ class ExtractionView(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        # Header banner
+        header = QLabel("EXTRACT & REFRESH")
+        header.setAlignment(Qt.AlignCenter)
+        header.setStyleSheet("""
+            QLabel {
+                background-color: #0099BC;
+                color: white;
+                font-size: 13pt;
+                font-weight: bold;
+                padding: 8px;
+                border-radius: 4px;
+            }
+        """)
+        layout.addWidget(header)
 
         # Top: options + client list
         top_layout = QHBoxLayout()
@@ -36,14 +52,34 @@ class ExtractionView(QWidget):
         layout.addWidget(self._build_control_buttons())
 
         # Progress
-        progress_layout = QHBoxLayout()
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        progress_layout.addWidget(self.progress_bar)
-        layout.addLayout(progress_layout)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                text-align: center;
+                height: 26px;
+                font-weight: bold;
+                background: #f0f0f0;
+            }
+            QProgressBar::chunk {
+                background-color: #0099BC;
+                border-radius: 3px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
 
         self.status_label = QLabel("Ready for extraction")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #323130;
+                font-size: 10pt;
+                font-weight: bold;
+                padding: 2px 0px;
+            }
+        """)
         layout.addWidget(self.status_label)
 
         # Log
@@ -55,12 +91,30 @@ class ExtractionView(QWidget):
                 color: #d4d4d4;
                 font-family: "Consolas", "Courier New", monospace;
                 font-size: 9pt;
+                border: 2px solid #3c3c3c;
+                border-radius: 4px;
+                padding: 8px;
             }
         """)
         layout.addWidget(self.log_text)
 
     def _build_options_group(self):
         group = QGroupBox("Extraction Options")
+        group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #0099BC;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 16px;
+            }
+            QGroupBox::title {
+                color: #0099BC;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
         layout = QVBoxLayout(group)
 
         # Wait time
@@ -89,18 +143,43 @@ class ExtractionView(QWidget):
 
     def _build_client_list_group(self):
         group = QGroupBox("Clients")
+        group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #0099BC;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 16px;
+            }
+            QGroupBox::title {
+                color: #0099BC;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
         layout = QVBoxLayout(group)
 
         # Selection buttons
         btn_row = QHBoxLayout()
 
         self.btn_itc_only = QPushButton("ITC Only")
+        self.btn_itc_only.setObjectName("primary")
+        self.btn_itc_only.setCursor(Qt.PointingHandCursor)
         self.btn_itc_only.clicked.connect(self._select_itc_only)
+
         self.btn_sales_only = QPushButton("Sales Only")
+        self.btn_sales_only.setObjectName("warning")
+        self.btn_sales_only.setCursor(Qt.PointingHandCursor)
         self.btn_sales_only.clicked.connect(self._select_sales_only)
+
         self.btn_select_all = QPushButton("Select All")
+        self.btn_select_all.setObjectName("success")
+        self.btn_select_all.setCursor(Qt.PointingHandCursor)
         self.btn_select_all.clicked.connect(self._select_all)
+
         self.btn_deselect_all = QPushButton("Deselect All")
+        self.btn_deselect_all.setCursor(Qt.PointingHandCursor)
         self.btn_deselect_all.clicked.connect(self._deselect_all)
 
         btn_row.addWidget(self.btn_itc_only)
@@ -138,15 +217,31 @@ class ExtractionView(QWidget):
         layout.setContentsMargins(0, 4, 0, 4)
 
         self.btn_start = QPushButton("Start Extraction")
-        self.btn_start.setObjectName("primary")
+        self.btn_start.setCursor(Qt.PointingHandCursor)
+        self.btn_start.setStyleSheet("""
+            QPushButton {
+                background: #0099BC;
+                color: white;
+                font-size: 11pt;
+                font-weight: bold;
+                padding: 8px 24px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background: #0088a8; }
+            QPushButton:pressed { background: #007794; }
+            QPushButton:disabled { background: #a0a0a0; }
+        """)
         self.btn_start.clicked.connect(self.start_extraction_requested.emit)
 
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setObjectName("danger")
+        self.btn_stop.setCursor(Qt.PointingHandCursor)
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.stop_extraction_requested.emit)
 
         self.btn_clear_log = QPushButton("Clear Log")
+        self.btn_clear_log.setCursor(Qt.PointingHandCursor)
         self.btn_clear_log.clicked.connect(lambda: self.log_text.clear())
 
         layout.addWidget(self.btn_start)
@@ -159,17 +254,13 @@ class ExtractionView(QWidget):
     # ── Public API ────────────────────────────────────────────
 
     def populate_clients(self, clients, run_history=None):
-        """Populate client list from processing results or scan data.
-
-        Args:
-            clients: list of dicts with keys: name, client_key, has_itc, has_sales
-            run_history: optional RunHistory for last refresh timestamps
-        """
+        """Populate client list from processing results or scan data."""
         self.client_model.removeRows(0, self.client_model.rowCount())
 
         for client in clients:
             name_item = QStandardItem(client.get('name', ''))
             name_item.setData(client.get('client_key', ''), Qt.UserRole)
+            name_item.setData(client.get('version_folder', ''), Qt.UserRole + 1)
             name_item.setEditable(False)
 
             itc_item = QStandardItem()
@@ -207,6 +298,7 @@ class ExtractionView(QWidget):
                 selected.append({
                     'client_key': name_item.data(Qt.UserRole),
                     'name': name_item.text(),
+                    'version_folder': name_item.data(Qt.UserRole + 1) or '',
                     'process_itc': process_itc,
                     'process_sales': process_sales,
                 })

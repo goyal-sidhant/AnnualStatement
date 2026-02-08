@@ -6,14 +6,13 @@ Fixed with proper Union import.
 
 import logging
 from pathlib import Path
+from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Any, Union
 from collections import defaultdict
 
 from utils.constants import FILE_PATTERNS, EXPECTED_FILE_TYPES
 from utils.helpers import (
-    validate_excel_file, get_file_info, find_excel_files,
-    validate_client_name, format_size, get_state_code
-    
+    find_excel_files, validate_client_name, format_size, get_state_code
 )
 
 logger = logging.getLogger(__name__)
@@ -144,16 +143,19 @@ class FileParser:
                 raise FileNotFoundError(f"Folder not found: {folder}")
             if not folder.is_dir():
                 raise ValueError(f"Not a directory: {folder}")
-            # Find all Excel files
+            # Find all Excel files (fast glob, no I/O per file)
+            self._update_progress(0, 0, "Finding Excel files...")
             excel_files = find_excel_files(folder)
             if not excel_files:
                 logger.warning(f"No Excel files found in {folder}")
+                self._update_progress(0, 0, "No Excel files found")
                 return self.scanned_files, dict(self.client_data), self.variations
             total_files = len(excel_files)
             logger.info(f"Found {total_files} Excel files to process")
+            self._update_progress(0, total_files, f"Found {total_files} files, processing...")
             # Process each file
             for idx, file_path in enumerate(excel_files):
-                self._update_progress(idx + 1, total_files, f"Processing {file_path.name}")
+                self._update_progress(idx + 1, total_files, f"[{idx+1}/{total_files}] {file_path.name}")
                 self._process_file(file_path, folder)
             # Analyze completeness
             self._analyze_client_completeness()
@@ -167,24 +169,65 @@ class FileParser:
             raise
     
     def _process_file(self, file_path: Path, base_folder: Path):
-        """Process a single file"""
+        """Process a single file with minimal I/O (one stat + one open)"""
         try:
-            # Get file info
-            file_info = get_file_info(file_path)
-            
-            # Validate Excel file
-            if not validate_excel_file(file_path):
+            # Single stat() call to get size and timestamps
+            try:
+                stat = file_path.stat()
+            except OSError as e:
+                logger.warning(f"Cannot stat {file_path.name}: {e}")
+                return
+
+            size = stat.st_size
+
+            # Skip files too small to be valid Excel (<1KB)
+            if size < 1024:
                 self.variations.append({
                     'filename': file_path.name,
                     'path': str(file_path),
-                    'issue': 'Invalid or corrupted Excel file',
-                    'size': file_info.get('size', 0)
+                    'issue': 'File too small to be valid Excel',
+                    'size': size
                 })
                 return
-            
+
+            # Validate Excel signature (single open+read, no extra stat/exists)
+            try:
+                with open(file_path, 'rb') as f:
+                    header = f.read(8)
+                xlsx_sig = b'PK\x03\x04'
+                xls_sig = b'\xd0\xcf\x11\xe0'
+                if not (header.startswith(xlsx_sig) or header.startswith(xls_sig)):
+                    self.variations.append({
+                        'filename': file_path.name,
+                        'path': str(file_path),
+                        'issue': 'Invalid or corrupted Excel file',
+                        'size': size
+                    })
+                    return
+            except OSError as e:
+                logger.warning(f"Cannot read {file_path.name}: {e}")
+                self.variations.append({
+                    'filename': file_path.name,
+                    'path': str(file_path),
+                    'issue': f'Cannot read file: {e}',
+                    'size': size
+                })
+                return
+
+            # Build file info from the stat we already have
+            file_info = {
+                'name': file_path.name,
+                'path': str(file_path),
+                'size': size,
+                'size_formatted': format_size(size),
+                'modified': datetime.fromtimestamp(stat.st_mtime),
+                'created': datetime.fromtimestamp(stat.st_ctime),
+                'extension': file_path.suffix.lower(),
+            }
+
             # Parse filename
             parsed = self.parse_filename(file_path.name)
-            
+
             # Combine information
             file_data = {
                 **file_info,
@@ -192,23 +235,22 @@ class FileParser:
                 'full_path': str(file_path),
                 'relative_path': str(file_path.relative_to(base_folder))
             }
-            
+
             # Store in scanned files
             self.scanned_files[file_path.name] = file_data
-            
+
             # Process based on parsing result
             if parsed['parsed'] and parsed['client'] and parsed['state']:
                 self._add_to_client_data(file_data)
             else:
-                # Add to variations
                 self.variations.append({
                     'filename': file_path.name,
                     'path': str(file_path),
                     'issue': parsed.get('error', 'Could not parse filename'),
-                    'size': file_info.get('size', 0),
+                    'size': size,
                     'pattern_expected': self._suggest_pattern(file_path.name)
                 })
-                
+
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")
             self.errors.append(f"Error processing {file_path.name}: {str(e)}")
