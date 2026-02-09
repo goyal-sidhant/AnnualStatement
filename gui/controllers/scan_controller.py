@@ -28,10 +28,12 @@ class ScanWorker(QObject):
                 self.folder_path,
                 progress_callback=lambda cur, tot, msg: self.progress.emit(cur, tot, msg)
             )
+            statistics = parser.get_statistics()
             result = ScanResult(
                 scanned_files=scanned_files,
                 client_data=client_data,
-                variations=variations
+                variations=variations,
+                statistics=statistics,
             )
             self.finished.emit(result)
         except Exception as e:

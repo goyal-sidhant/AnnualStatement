@@ -52,6 +52,7 @@ class ScanResult:
     scanned_files: Dict[str, Any] = field(default_factory=dict)
     client_data: Dict[str, Any] = field(default_factory=dict)
     variations: List[Dict] = field(default_factory=list)
+    statistics: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def total_files(self) -> int:

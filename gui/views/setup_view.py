@@ -132,8 +132,10 @@ class SetupView(QWidget):
         right_layout.setContentsMargins(10, 20, 20, 20)
         right_layout.setSpacing(10)
 
-        right_layout.addWidget(self._build_instructions_card())
-        right_layout.addWidget(self._build_patterns_card())
+        self._instructions_card = self._build_instructions_card()
+        self._patterns_card = self._build_patterns_card()
+        right_layout.addWidget(self._instructions_card)
+        right_layout.addWidget(self._patterns_card)
         right_layout.addWidget(self._build_scan_log())
 
         splitter.addWidget(left_scroll)
@@ -584,6 +586,12 @@ class SetupView(QWidget):
 
     def clear_scan_log(self):
         self.scan_log.clear()
+
+    def collapse_info_cards(self):
+        """Collapse Instructions and Expected File Names cards to free space for scan log."""
+        for card in [self._instructions_card, self._patterns_card]:
+            if not card._collapsed:
+                card._toggle()
 
     # ── Helpers ─────────────────────────────────────────────────
 

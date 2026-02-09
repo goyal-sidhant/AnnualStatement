@@ -6,12 +6,13 @@ Replaces the old Tkinter GSTOrganizerApp god object.
 import os
 import platform
 import logging
+from datetime import datetime
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QMessageBox, QAction, QMenuBar
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor
 
 from models.app_state import AppSettings, ScanResult, ProcessingState
 from models.run_history import RunHistory
@@ -167,6 +168,8 @@ class GSTOrganizerWindow(QMainWindow):
             self._on_start_extraction)
         self.extraction_view.stop_extraction_requested.connect(
             self.extraction_controller.stop_extraction)
+        self.extraction_view.refresh_list_requested.connect(
+            self._populate_extraction_from_disk)
 
     def _restore_settings(self):
         """Populate views from saved settings"""
@@ -183,8 +186,8 @@ class GSTOrganizerWindow(QMainWindow):
         self.extraction_view.suffix_input.setText(self.settings.pq_suffix_pattern)
         self.extraction_view.chk_skip_refresh.setChecked(self.settings.pq_skip_refresh)
 
-        # Populate extraction tab from all previously processed clients
-        self._populate_extraction_from_history()
+        # Populate extraction tab from disk (latest Level 1 folder)
+        self._populate_extraction_from_disk()
 
     # ── Settings ──────────────────────────────────────────────
 
@@ -222,6 +225,7 @@ class GSTOrganizerWindow(QMainWindow):
             return
 
         self._save_settings()
+        self.setup_view.collapse_info_cards()
         self.setup_view.clear_scan_log()
         self.setup_view.log_scan_message(f"Scanning: {folder}", 'info')
         self.setup_view.btn_scan.setEnabled(False)
@@ -240,38 +244,72 @@ class GSTOrganizerWindow(QMainWindow):
     def _on_scan_completed(self, result: ScanResult):
         try:
             self.scan_result = result
+            stats = result.statistics
 
-            # Log to setup view
-            total = result.total_files
-            clients = result.total_clients
-            complete = result.complete_clients
-            variations = len(result.variations)
-
+            # Log detailed stats to setup view scan log
             self.setup_view.log_scan_message("", 'normal')
-            self.setup_view.log_scan_message(f"Scan complete!", 'success')
-            self.setup_view.log_scan_message(f"  Files found: {total}", 'success')
-            self.setup_view.log_scan_message(f"  Clients: {clients} ({complete} complete)", 'success')
-            if variations:
-                self.setup_view.log_scan_message(f"  Variations/issues: {variations}", 'warning')
+            self.setup_view.log_scan_message("SCAN RESULTS", 'success')
+            self.setup_view.log_scan_message("=" * 40, 'success')
+            self.setup_view.log_scan_message(f"  Files found: {stats.get('total_files', 0)}", 'info')
+            self.setup_view.log_scan_message(f"  Parsed: {stats.get('parsed_files', 0)} ({stats.get('parsing_rate', 0):.1f}%)", 'info')
+            self.setup_view.log_scan_message(f"  Unparsed: {stats.get('unparsed_files', 0)}", 'warning' if stats.get('unparsed_files', 0) else 'info')
+            self.setup_view.log_scan_message(f"  Total size: {stats.get('total_size_formatted', '0 B')}", 'info')
+            self.setup_view.log_scan_message("", 'normal')
+            self.setup_view.log_scan_message(f"  Clients: {stats.get('total_clients', 0)}", 'info')
+            self.setup_view.log_scan_message(f"  Complete: {stats.get('complete_clients', 0)} ({stats.get('completion_rate', 0):.1f}%)", 'success')
+            self.setup_view.log_scan_message(f"  Incomplete: {stats.get('incomplete_clients', 0)}", 'warning' if stats.get('incomplete_clients', 0) else 'info')
+            if stats.get('variations', 0):
+                self.setup_view.log_scan_message(f"  Variations: {stats['variations']}", 'warning')
+            # File type distribution
+            dist = stats.get('file_type_distribution', {})
+            if dist:
+                self.setup_view.log_scan_message("", 'normal')
+                self.setup_view.log_scan_message("FILE TYPES:", 'info')
+                for ftype, count in sorted(dist.items()):
+                    self.setup_view.log_scan_message(f"  {ftype}: {count}", 'normal')
+
             self.setup_view.btn_scan.setEnabled(True)
 
             # Populate validation view
             self.validation_view.populate_clients(result.client_data, self.run_history)
 
+            # Build rich summary HTML for validation tab
+            dist_rows = ""
+            for ftype, count in sorted(dist.items()):
+                dist_rows += f"<tr><td style='padding:1px 8px;'>{ftype}</td><td style='padding:1px 8px;'><b>{count}</b></td></tr>"
+
             summary_html = f"""
-            <h3>Scan Summary</h3>
-            <p><b>Total files:</b> {total}</p>
-            <p><b>Clients found:</b> {clients} ({complete} complete)</p>
-            <p><b>Variations/issues:</b> {variations}</p>
+            <h3 style="color:#0078D4; margin-bottom:4px;">Scan Summary</h3>
+            <table style="margin-bottom:6px;">
+              <tr><td><b>Total files:</b></td><td>{stats.get('total_files', 0)}</td></tr>
+              <tr><td><b>Parsed:</b></td><td>{stats.get('parsed_files', 0)} ({stats.get('parsing_rate', 0):.1f}%)</td></tr>
+              <tr><td><b>Unparsed:</b></td><td>{stats.get('unparsed_files', 0)}</td></tr>
+              <tr><td><b>Total size:</b></td><td>{stats.get('total_size_formatted', '0 B')}</td></tr>
+            </table>
+            <h4 style="color:#107C10; margin-bottom:4px;">Clients</h4>
+            <table style="margin-bottom:6px;">
+              <tr><td><b>Total clients:</b></td><td>{stats.get('total_clients', 0)}</td></tr>
+              <tr><td><b>Complete:</b></td><td>{stats.get('complete_clients', 0)} ({stats.get('completion_rate', 0):.1f}%)</td></tr>
+              <tr><td><b>Incomplete:</b></td><td>{stats.get('incomplete_clients', 0)}</td></tr>
+              <tr><td><b>Variations:</b></td><td>{stats.get('variations', 0)}</td></tr>
+            </table>
+            <h4 style="color:#FF8C00; margin-bottom:4px;">File Types</h4>
+            <table>{dist_rows}</table>
             """
             self.validation_view.set_summary(summary_html)
 
             # Enable rescan
             self.setup_view.btn_rescan.setEnabled(True)
 
-            # Switch to validation tab
+            # Update tab state indicators and switch to validation
+            self._update_tab_state(0, 'complete')
+            self._update_tab_state(1, 'ready')
             self.tabs.setCurrentIndex(1)
-            self.status_bar.showMessage(f"Scan complete: {clients} clients, {total} files")
+            self.status_bar.showMessage(
+                f"Scan complete: {stats.get('total_clients', 0)} clients, "
+                f"{stats.get('total_files', 0)} files, "
+                f"{stats.get('total_size_formatted', '')}"
+            )
         except Exception as e:
             logger.error(f"Error in scan completion handler: {e}", exc_info=True)
             self.setup_view.log_scan_message(f"Error displaying results: {e}", 'error')
@@ -342,18 +380,25 @@ class GSTOrganizerWindow(QMainWindow):
         self.cache_manager.save_run_history(self.run_history)
         self._save_settings()
 
-        # Refresh extraction tab with ALL processed clients (including this run)
-        self._populate_extraction_from_history()
+        # Refresh extraction tab from disk (includes just-processed clients)
+        self._populate_extraction_from_disk()
 
         # Show completion
         successful = summary_data.get('successful_clients', 0)
         total = summary_data.get('total_clients', 0)
+
+        # Update tab state indicators
+        self._update_tab_state(2, 'complete')
+        self._update_tab_state(3, 'ready')
 
         QMessageBox.information(
             self, "Processing Complete",
             f"Successfully processed {successful}/{total} clients\n\n"
             f"Files organized in:\n{self.settings.target_folder}"
         )
+
+        # Navigate to extraction tab
+        self.tabs.setCurrentIndex(3)
 
         # Open output folder
         level1 = summary_data.get('level1_folder', '')
@@ -371,129 +416,139 @@ class GSTOrganizerWindow(QMainWindow):
 
     # ── Extraction ────────────────────────────────────────────
 
-    def _populate_extraction_from_history(self):
-        """Populate extraction tab from ALL processed clients in run history"""
-        clients = []
-        for client_key, records in self.run_history.client_history.items():
-            if not records:
-                continue
-            latest = records[-1]
+    def _populate_extraction_from_disk(self):
+        """Scan target folder on disk and populate extraction tab with tree data."""
+        target_str = self.settings.target_folder
+        if not target_str:
+            self.extraction_view.show_no_data_message("No target folder configured.")
+            return
+        target = Path(target_str)
+        if not target.is_dir():
+            self.extraction_view.show_no_data_message("Target folder does not exist.")
+            return
 
-            name = latest.get('client_name', '')
-            state = latest.get('state', '')
-            display_name = f"{name} - {state}" if name and state else client_key
+        # Find latest Level 1 folder (Annual Statement-*)
+        try:
+            level1_folders = sorted(
+                [f for f in target.iterdir()
+                 if f.is_dir() and f.name.startswith('Annual Statement-')],
+                key=lambda p: p.name, reverse=True
+            )
+        except OSError as e:
+            logger.warning(f"Error scanning target folder: {e}")
+            self.extraction_view.show_no_data_message(f"Error scanning: {e}")
+            return
 
-            # Find latest version folder from the output_folder (level2)
-            output_folder = latest.get('output_folder', '')
-            version_folder = ''
-            if output_folder and Path(output_folder).is_dir():
-                try:
-                    for sub in sorted(Path(output_folder).iterdir(), reverse=True):
-                        if sub.is_dir():
-                            version_folder = str(sub)
-                            break
-                except OSError:
-                    pass
+        if not level1_folders:
+            self.extraction_view.show_no_data_message(
+                "No 'Annual Statement-...' folders found in target."
+            )
+            return
 
-            clients.append({
-                'name': display_name,
-                'client_key': client_key,
-                'version_folder': version_folder,
-                'has_itc': latest.get('itc_report_created', False),
-                'has_sales': latest.get('sales_report_created', False),
-            })
+        latest_l1 = level1_folders[0]
 
-        # Sort by client name for consistent display
-        clients.sort(key=lambda c: c['name'])
-        self.extraction_view.populate_clients(clients, self.run_history)
+        # Build tree data: scan Level 2 (client) → Version folders
+        tree_data = []
+        try:
+            for level2 in sorted(latest_l1.iterdir()):
+                if not level2.is_dir():
+                    continue
+                versions = []
+                for version_dir in sorted(level2.iterdir(), reverse=True):
+                    if not version_dir.is_dir():
+                        continue
+                    # Check for ITC/Sales reports
+                    has_itc = any(version_dir.glob("ITC_Report_*.xlsx"))
+                    has_sales = any(version_dir.glob("Sales_Report_*.xlsx"))
+                    if not has_itc and not has_sales:
+                        continue  # Skip version folders with no reports
+
+                    # Check for refreshed files
+                    refreshed_files = [
+                        f for f in version_dir.glob("*_Refreshed*")
+                        if f.suffix.lower() in {'.xlsx', '.xls', '.xlsm'}
+                        and not f.name.startswith('~$')
+                    ]
+                    refresh_status = 'Pending'
+                    refresh_timestamp = ''
+                    if refreshed_files:
+                        newest = max(refreshed_files, key=lambda f: f.stat().st_mtime)
+                        refresh_timestamp = datetime.fromtimestamp(
+                            newest.stat().st_mtime
+                        ).strftime('%d/%m/%y %H:%M')
+                        refresh_status = 'Refreshed'
+
+                    versions.append({
+                        'name': version_dir.name,
+                        'path': version_dir,
+                        'has_itc': has_itc,
+                        'has_sales': has_sales,
+                        'refresh_status': refresh_status,
+                        'refresh_timestamp': refresh_timestamp,
+                    })
+
+                if versions:
+                    tree_data.append({
+                        'name': level2.name,
+                        'path': level2,
+                        'versions': versions,
+                    })
+        except OSError as e:
+            logger.warning(f"Error scanning client folders: {e}")
+
+        if tree_data:
+            self.extraction_view.populate_tree(tree_data, latest_l1)
+        else:
+            self.extraction_view.show_no_data_message(
+                f"No processed clients found in {latest_l1.name}"
+            )
 
     def _on_start_extraction(self):
         selected = self.extraction_view.get_selected_clients()
         if not selected:
-            QMessageBox.warning(self, "Warning", "No clients selected for extraction.")
+            QMessageBox.warning(self, "Warning", "No versions selected for extraction.")
             return
 
-        if not self.settings.target_folder:
-            QMessageBox.warning(self, "Warning", "Please set a target folder in Setup tab.")
+        level1_folder = self.extraction_view.get_level1_folder()
+        if not level1_folder:
+            QMessageBox.warning(self, "Warning", "No Level 1 folder available.")
             return
 
-        # Build client data for extraction (needs file paths)
-        extraction_clients = self._build_extraction_clients(selected)
+        # Build client data — version paths come directly from tree items
+        extraction_clients = []
+        for sel in selected:
+            vf = sel.get('version_folder', '')
+            if vf and Path(vf).is_dir():
+                extraction_clients.append({
+                    'name': sel['name'],
+                    'client_key': sel['client_key'],
+                    'latest_version': Path(vf),
+                    'process_itc': sel.get('process_itc', True),
+                    'process_sales': sel.get('process_sales', True),
+                })
+            else:
+                logger.warning(f"Version folder not found: {vf}")
 
         if not extraction_clients:
             QMessageBox.warning(
                 self, "Warning",
-                "Could not find output folders for the selected clients.\n\n"
-                "Make sure you have processed these clients first (Step 3)."
+                "Could not find version folders for the selected items.\n\n"
+                "Make sure clients have been processed first (Step 3)."
             )
             return
 
         self.extraction_controller.start_extraction(
             clients=extraction_clients,
             output_folder=self.settings.target_folder,
+            level1_folder=level1_folder,
             wait_time=self.extraction_view.spin_wait_time.value(),
             suffix_pattern=self.extraction_view.suffix_input.text(),
             skip_refresh=self.extraction_view.chk_skip_refresh.isChecked(),
         )
 
-    def _build_extraction_clients(self, selected):
-        """Build client data dicts for the extraction worker"""
-        clients = []
-        target = Path(self.settings.target_folder)
-
-        for sel in selected:
-            key = sel['client_key']
-            name = sel['name']
-            version_folder = sel.get('version_folder', '')
-
-            # Use stored version folder path if available
-            if version_folder and Path(version_folder).is_dir():
-                clients.append({
-                    'name': name,
-                    'client_key': key,
-                    'latest_version': Path(version_folder),
-                    'process_itc': sel.get('process_itc', True),
-                    'process_sales': sel.get('process_sales', True),
-                })
-                continue
-
-            # Fallback: search for the client's folder in the target directory
-            latest_version = self._find_latest_version_folder(target, key)
-            if latest_version:
-                clients.append({
-                    'name': name,
-                    'client_key': key,
-                    'latest_version': latest_version,
-                    'process_itc': sel.get('process_itc', True),
-                    'process_sales': sel.get('process_sales', True),
-                })
-            else:
-                logger.warning(f"Could not find version folder for {key}")
-
-        return clients
-
-    def _find_latest_version_folder(self, target: Path, client_key: str):
-        """Search for the latest version folder for a client key"""
-        try:
-            # Search only top-level subfolders (Level 1 date folders)
-            for level1 in sorted(target.iterdir(), reverse=True):
-                if not level1.is_dir():
-                    continue
-                # Look for client folder inside level1
-                for level2 in sorted(level1.iterdir(), reverse=True):
-                    if not level2.is_dir():
-                        continue
-                    if client_key in level2.name:
-                        # Find latest version subfolder
-                        for version in sorted(level2.iterdir(), reverse=True):
-                            if version.is_dir():
-                                return version
-        except OSError as e:
-            logger.warning(f"Error searching for {client_key}: {e}")
-        return None
-
     def _on_extraction_completed(self, results):
         self.extraction_view.set_extraction_state(False)
+        self._update_tab_state(3, 'complete')
         self.status_bar.showMessage("Extraction complete")
 
         # Save extraction results to run history
@@ -502,9 +557,37 @@ class GSTOrganizerWindow(QMainWindow):
             self.run_history.add_extraction_result(client_key, result)
         self.cache_manager.save_run_history(self.run_history)
 
+        # Re-scan disk to update refresh status in tree
+        self._populate_extraction_from_disk()
+
     def _on_extraction_error(self, error_msg):
         self.extraction_view.set_extraction_state(False)
         QMessageBox.critical(self, "Extraction Error", error_msg)
+
+    # ── Tab State Indicators ─────────────────────────────────
+
+    def _make_dot_icon(self, color_hex):
+        """Create a small colored circle icon for tab state."""
+        size = 12
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QColor(color_hex))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(1, 1, size - 2, size - 2)
+        painter.end()
+        return QIcon(pixmap)
+
+    def _update_tab_state(self, tab_index, state):
+        """Update tab icon: 'pending' = gray, 'ready' = orange, 'complete' = green."""
+        colors = {
+            'pending': '#a0a0a0',
+            'ready': '#FF8C00',
+            'complete': '#107C10',
+        }
+        color = colors.get(state, '#a0a0a0')
+        self.tabs.setTabIcon(tab_index, self._make_dot_icon(color))
 
     # ── Theme ─────────────────────────────────────────────────
 

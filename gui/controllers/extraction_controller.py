@@ -21,14 +21,17 @@ class ExtractionWorker(QObject):
     error = pyqtSignal(str)
 
     def __init__(self, clients, output_folder, wait_time=10,
-                 suffix_pattern='_Refreshed_{timestamp}', skip_refresh=False):
+                 suffix_pattern='_Refreshed_{timestamp}', skip_refresh=False,
+                 level1_folder=None):
         super().__init__()
         self.clients = clients
         self.output_folder = Path(output_folder)
+        self.level1_folder = Path(level1_folder) if level1_folder else self.output_folder
         self.wait_time = wait_time
         self.suffix_pattern = suffix_pattern
         self.skip_refresh = skip_refresh
         self.stop_requested = False
+        self._log_lines = []
 
     def run(self):
         try:
@@ -36,6 +39,11 @@ class ExtractionWorker(QObject):
         except Exception as e:
             logger.error(f"Extraction error: {e}", exc_info=True)
             self.error.emit(str(e))
+
+    def _log(self, msg, level='info'):
+        """Emit log message and capture for log file."""
+        self._log_lines.append(msg)
+        self.log.emit(msg, level)
 
     def _process(self):
         processor = ReportProcessor()
@@ -51,16 +59,16 @@ class ExtractionWorker(QObject):
 
         for idx, client in enumerate(self.clients):
             if self.stop_requested:
-                self.log.emit("Extraction stopped by user", 'warning')
+                self._log("Extraction stopped by user", 'warning')
                 break
 
             pct = (idx / total) * 100
             name = client.get('name', 'Unknown')
             self.progress.emit(pct, f"Processing {idx+1}/{total}: {name}")
-            self.log.emit(f"\n🏢 Processing {name}...", 'info')
+            self._log(f"\n Processing {name}...", 'info')
 
             def log_callback(msg, level='info'):
-                self.log.emit(msg, level)
+                self._log(msg, level)
 
             result = processor.process_client(client, log_callback=log_callback)
             results.append(result)
@@ -70,30 +78,47 @@ class ExtractionWorker(QObject):
             sales_ok = result.get('sales', {}).get('status', {}).get('success', False)
             status = []
             if client.get('process_itc', True):
-                status.append(f"ITC: {'✅' if itc_ok else '❌'}")
+                status.append(f"ITC: {'OK' if itc_ok else 'FAIL'}")
             if client.get('process_sales', True):
-                status.append(f"Sales: {'✅' if sales_ok else '❌'}")
-            self.log.emit(f"  Result: {', '.join(status)}", 'success' if (itc_ok or sales_ok) else 'error')
+                status.append(f"Sales: {'OK' if sales_ok else 'FAIL'}")
+            self._log(f"  Result: {', '.join(status)}", 'success' if (itc_ok or sales_ok) else 'error')
 
-        # Create consolidated report
+        # Create consolidated report in Level 1 folder
         if results:
-            self.log.emit("\n📊 Creating consolidated report...", 'info')
+            self._log("\n Creating consolidated report...", 'info')
             self.progress.emit(95, "Creating report...")
             try:
                 consolidator = DataConsolidator()
-                report_path = consolidator.create_report(results, self.output_folder)
-                self.log.emit(f"  ✅ Report saved: {report_path.name}", 'success')
+                report_path = consolidator.create_report(results, self.level1_folder)
+                self._log(f"  Report saved: {report_path.name}", 'success')
             except Exception as e:
-                self.log.emit(f"  ❌ Report error: {e}", 'error')
+                self._log(f"  Report error: {e}", 'error')
 
         self.progress.emit(100, "Extraction complete")
-        self.log.emit(f"\n🎉 Extraction complete: {len(results)}/{total} clients processed", 'success')
+        self._log(f"\n Extraction complete: {len(results)}/{total} clients processed", 'success')
+
+        # Save extraction log to Level 1 folder
+        self._save_log_file()
 
         self.finished.emit({
             'results': results,
             'total': total,
             'processed': len(results),
         })
+
+    def _save_log_file(self):
+        """Save extraction log as text file in Level 1 folder."""
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+            log_path = self.level1_folder / f"Extraction_Log_{timestamp}.txt"
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(f"PQ Extraction Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("=" * 60 + "\n\n")
+                for line in self._log_lines:
+                    f.write(line + "\n")
+            logger.info(f"Extraction log saved: {log_path}")
+        except OSError as e:
+            logger.warning(f"Could not save extraction log: {e}")
 
 
 class ExtractionController(QObject):
@@ -111,7 +136,8 @@ class ExtractionController(QObject):
         self._worker = None
 
     def start_extraction(self, clients, output_folder, wait_time=10,
-                         suffix_pattern='_Refreshed_{timestamp}', skip_refresh=False):
+                         suffix_pattern='_Refreshed_{timestamp}', skip_refresh=False,
+                         level1_folder=None):
         """Start extraction in a worker thread"""
         if self._thread and self._thread.isRunning():
             logger.warning("Extraction already in progress")
@@ -121,7 +147,8 @@ class ExtractionController(QObject):
 
         self._thread = QThread()
         self._worker = ExtractionWorker(
-            clients, output_folder, wait_time, suffix_pattern, skip_refresh
+            clients, output_folder, wait_time, suffix_pattern, skip_refresh,
+            level1_folder=level1_folder
         )
         self._worker.moveToThread(self._thread)
 

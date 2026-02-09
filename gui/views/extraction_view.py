@@ -1,14 +1,15 @@
 """
-Extraction View - Tab 4: PQ refresh + cell extraction (merged PQ Extractor).
-Auto-populates from Step 3 processing results.
+Extraction View - Tab 4: PQ refresh + cell extraction.
+Tree view driven by disk scanning: Client (parent) → Version (child).
 """
 
+from pathlib import Path
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QSpinBox, QLineEdit, QCheckBox, QProgressBar,
     QTextEdit, QTreeView, QHeaderView, QFrame
 )
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QTextCursor
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QTextCursor, QColor, QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 
 
@@ -17,9 +18,11 @@ class ExtractionView(QWidget):
 
     start_extraction_requested = pyqtSignal()
     stop_extraction_requested = pyqtSignal()
+    refresh_list_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._level1_folder = None
         self._build_ui()
 
     def _build_ui(self):
@@ -160,6 +163,37 @@ class ExtractionView(QWidget):
         """)
         layout = QVBoxLayout(group)
 
+        # Level 1 folder label + refresh button
+        source_row = QHBoxLayout()
+        self._level1_label = QLabel("No data loaded")
+        self._level1_label.setStyleSheet("""
+            QLabel {
+                color: #0078D4;
+                font-size: 9pt;
+                padding: 2px 4px;
+                background: #E8F4FD;
+                border-radius: 3px;
+            }
+        """)
+        source_row.addWidget(self._level1_label, stretch=1)
+
+        btn_refresh = QPushButton("Refresh List")
+        btn_refresh.setCursor(Qt.PointingHandCursor)
+        btn_refresh.setStyleSheet("""
+            QPushButton {
+                background: #0078D4;
+                color: white;
+                font-size: 8pt;
+                padding: 4px 12px;
+                border: none;
+                border-radius: 3px;
+            }
+            QPushButton:hover { background: #106EBE; }
+        """)
+        btn_refresh.clicked.connect(self.refresh_list_requested.emit)
+        source_row.addWidget(btn_refresh)
+        layout.addLayout(source_row)
+
         # Selection buttons
         btn_row = QHBoxLayout()
 
@@ -189,14 +223,14 @@ class ExtractionView(QWidget):
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        # Client tree
+        # Client tree (parent/child: Client → Version)
         self.client_tree = QTreeView()
         self.client_tree.setAlternatingRowColors(True)
-        self.client_tree.setRootIsDecorated(False)
+        self.client_tree.setRootIsDecorated(True)
 
         self.client_model = QStandardItemModel()
         self.client_model.setHorizontalHeaderLabels([
-            'Client', 'ITC', 'Sales', 'Last Refresh'
+            'Name', 'ITC', 'Sales', 'Refresh Status'
         ])
         self.client_tree.setModel(self.client_model)
 
@@ -206,6 +240,7 @@ class ExtractionView(QWidget):
         header.resizeSection(1, 50)
         header.setSectionResizeMode(2, QHeaderView.Fixed)
         header.resizeSection(2, 50)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
 
         layout.addWidget(self.client_tree)
 
@@ -253,55 +288,105 @@ class ExtractionView(QWidget):
 
     # ── Public API ────────────────────────────────────────────
 
-    def populate_clients(self, clients, run_history=None):
-        """Populate client list from processing results or scan data."""
+    def populate_tree(self, tree_data, level1_folder):
+        """Populate tree with client→version hierarchy from disk scan.
+
+        Args:
+            tree_data: List of dicts with 'name', 'path', 'versions' keys.
+            level1_folder: Path to the Level 1 folder being displayed.
+        """
         self.client_model.removeRows(0, self.client_model.rowCount())
+        self._level1_folder = level1_folder
+        self._level1_label.setText(f"Source: {Path(level1_folder).name}")
 
-        for client in clients:
-            name_item = QStandardItem(client.get('name', ''))
-            name_item.setData(client.get('client_key', ''), Qt.UserRole)
-            name_item.setData(client.get('version_folder', ''), Qt.UserRole + 1)
-            name_item.setEditable(False)
+        bold_font = QFont()
+        bold_font.setBold(True)
 
-            itc_item = QStandardItem()
-            itc_item.setCheckable(True)
-            itc_item.setCheckState(Qt.Checked if client.get('has_itc', False) else Qt.Unchecked)
-            itc_item.setEditable(False)
+        for client in tree_data:
+            # Parent row: client folder name
+            client_item = QStandardItem(client['name'])
+            client_item.setEditable(False)
+            client_item.setFont(bold_font)
+            client_item.setData(str(client['path']), Qt.UserRole)
 
-            sales_item = QStandardItem()
-            sales_item.setCheckable(True)
-            sales_item.setCheckState(Qt.Checked if client.get('has_sales', False) else Qt.Unchecked)
-            sales_item.setEditable(False)
+            # Placeholder columns for parent row
+            parent_itc = QStandardItem("")
+            parent_itc.setEditable(False)
+            parent_sales = QStandardItem("")
+            parent_sales.setEditable(False)
+            parent_status = QStandardItem(f"{len(client['versions'])} version(s)")
+            parent_status.setEditable(False)
+            parent_status.setForeground(QColor('#666666'))
 
-            last_refresh = ''
-            if run_history:
-                record = run_history.get_last_run_for_client(client.get('client_key', ''))
-                if record and record.get('pq_refresh_timestamp'):
-                    last_refresh = record['pq_refresh_timestamp']
-            refresh_item = QStandardItem(last_refresh)
-            refresh_item.setEditable(False)
+            # Add version child rows
+            for version in client['versions']:
+                ver_name = QStandardItem(f"  {version['name']}")
+                ver_name.setEditable(False)
+                ver_name.setData(str(version['path']), Qt.UserRole)
 
-            self.client_model.appendRow([name_item, itc_item, sales_item, refresh_item])
+                ver_itc = QStandardItem()
+                ver_itc.setCheckable(version['has_itc'])
+                ver_itc.setCheckState(Qt.Unchecked)
+                ver_itc.setEditable(False)
+                if not version['has_itc']:
+                    ver_itc.setForeground(QColor('#cccccc'))
+
+                ver_sales = QStandardItem()
+                ver_sales.setCheckable(version['has_sales'])
+                ver_sales.setCheckState(Qt.Unchecked)
+                ver_sales.setEditable(False)
+                if not version['has_sales']:
+                    ver_sales.setForeground(QColor('#cccccc'))
+
+                status_text = version['refresh_status']
+                if version['refresh_timestamp']:
+                    status_text += f" ({version['refresh_timestamp']})"
+                ver_status = QStandardItem(status_text)
+                ver_status.setEditable(False)
+
+                if version['refresh_status'] == 'Refreshed':
+                    ver_status.setForeground(QColor('#107C10'))
+                else:
+                    ver_status.setForeground(QColor('#FF8C00'))
+
+                client_item.appendRow([ver_name, ver_itc, ver_sales, ver_status])
+
+            self.client_model.appendRow([client_item, parent_itc, parent_sales, parent_status])
+
+        self.client_tree.expandAll()
+
+    def show_no_data_message(self, message):
+        """Show a message when no data is available."""
+        self.client_model.removeRows(0, self.client_model.rowCount())
+        self._level1_folder = None
+        self._level1_label.setText(message)
+
+    def get_level1_folder(self):
+        """Return the stored Level 1 folder path."""
+        return str(self._level1_folder) if self._level1_folder else ''
 
     def get_selected_clients(self):
-        """Get list of selected clients with their ITC/Sales selections."""
+        """Get list of selected versions with their ITC/Sales selections."""
         selected = []
-        for row in range(self.client_model.rowCount()):
-            name_item = self.client_model.item(row, 0)
-            itc_item = self.client_model.item(row, 1)
-            sales_item = self.client_model.item(row, 2)
+        root = self.client_model.invisibleRootItem()
+        for client_row in range(root.rowCount()):
+            client_item = root.child(client_row, 0)
+            for ver_row in range(client_item.rowCount()):
+                ver_name_item = client_item.child(ver_row, 0)
+                ver_itc_item = client_item.child(ver_row, 1)
+                ver_sales_item = client_item.child(ver_row, 2)
 
-            process_itc = itc_item.checkState() == Qt.Checked if itc_item else False
-            process_sales = sales_item.checkState() == Qt.Checked if sales_item else False
+                process_itc = ver_itc_item.checkState() == Qt.Checked if ver_itc_item else False
+                process_sales = ver_sales_item.checkState() == Qt.Checked if ver_sales_item else False
 
-            if process_itc or process_sales:
-                selected.append({
-                    'client_key': name_item.data(Qt.UserRole),
-                    'name': name_item.text(),
-                    'version_folder': name_item.data(Qt.UserRole + 1) or '',
-                    'process_itc': process_itc,
-                    'process_sales': process_sales,
-                })
+                if process_itc or process_sales:
+                    selected.append({
+                        'name': f"{client_item.text()} / {ver_name_item.text().strip()}",
+                        'client_key': client_item.text(),
+                        'version_folder': ver_name_item.data(Qt.UserRole) or '',
+                        'process_itc': process_itc,
+                        'process_sales': process_sales,
+                    })
         return selected
 
     def set_extraction_state(self, extracting: bool):
@@ -330,36 +415,42 @@ class ExtractionView(QWidget):
         self.log_text.setTextCursor(cursor)
         self.log_text.ensureCursorVisible()
 
-    # ── Selection helpers ─────────────────────────────────────
+    # ── Selection helpers (parent→child iteration) ────────────
+
+    def _iter_version_items(self):
+        """Yield (itc_item, sales_item) for every version child row."""
+        root = self.client_model.invisibleRootItem()
+        for client_row in range(root.rowCount()):
+            client_item = root.child(client_row, 0)
+            for ver_row in range(client_item.rowCount()):
+                itc = client_item.child(ver_row, 1)
+                sales = client_item.child(ver_row, 2)
+                yield itc, sales
 
     def _select_all(self):
-        for row in range(self.client_model.rowCount()):
-            for col in [1, 2]:
-                item = self.client_model.item(row, col)
-                if item:
-                    item.setCheckState(Qt.Checked)
+        for itc, sales in self._iter_version_items():
+            if itc and itc.isCheckable():
+                itc.setCheckState(Qt.Checked)
+            if sales and sales.isCheckable():
+                sales.setCheckState(Qt.Checked)
 
     def _deselect_all(self):
-        for row in range(self.client_model.rowCount()):
-            for col in [1, 2]:
-                item = self.client_model.item(row, col)
-                if item:
-                    item.setCheckState(Qt.Unchecked)
+        for itc, sales in self._iter_version_items():
+            if itc and itc.isCheckable():
+                itc.setCheckState(Qt.Unchecked)
+            if sales and sales.isCheckable():
+                sales.setCheckState(Qt.Unchecked)
 
     def _select_itc_only(self):
-        for row in range(self.client_model.rowCount()):
-            itc = self.client_model.item(row, 1)
-            sales = self.client_model.item(row, 2)
-            if itc:
+        for itc, sales in self._iter_version_items():
+            if itc and itc.isCheckable():
                 itc.setCheckState(Qt.Checked)
-            if sales:
+            if sales and sales.isCheckable():
                 sales.setCheckState(Qt.Unchecked)
 
     def _select_sales_only(self):
-        for row in range(self.client_model.rowCount()):
-            itc = self.client_model.item(row, 1)
-            sales = self.client_model.item(row, 2)
-            if itc:
+        for itc, sales in self._iter_version_items():
+            if itc and itc.isCheckable():
                 itc.setCheckState(Qt.Unchecked)
-            if sales:
+            if sales and sales.isCheckable():
                 sales.setCheckState(Qt.Checked)
