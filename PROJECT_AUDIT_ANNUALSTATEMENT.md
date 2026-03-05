@@ -1,10 +1,11 @@
 # PROJECT AUDIT: GST File Organizer & Report Generator
 
-**Audit Date:** 2026-03-04
+**Audit Date:** 2026-03-05
 **Auditor:** Claude Opus 4.6 (AI-assisted reverse engineering)
 **Project Root:** `d:\OneDrive 2\OneDrive\Python 2026\AnnualStatement`
-**Current Version:** v3.0 (Production Ready) — Tkinter GUI
-**Active Branch:** `main` at commit `47a1492`
+**Current Version:** v3.0 (Production Ready) — Tkinter GUI on `main` branch
+**Active Branch:** `main` at commit `fc279af`
+**Unmerged Branch:** `copilot-worktree-2026-03-04T11-52-56` — attempted PyQt5 migration (3 commits ahead of main, NOT merged)
 
 ---
 
@@ -14,7 +15,9 @@ This tool is a desktop application built for **CA/GST consultants** (Chartered A
 
 The core technology stack is: **Python 3.7+** for the language, **Tkinter** (Python's built-in GUI library) for the desktop interface, **openpyxl** for creating and reading Excel files, and **win32com/pywin32** for automating Microsoft Excel on Windows (required for Power Query refresh). The application has two entry points: `main.py` launches the main organizer GUI, and `launch_extractor.py` launches a separate Power Query Extractor tool.
 
-The project appears **actively maintained and production-used**. The git history shows real-world bug fixes (circular imports, threading issues, long path handling) that suggest it has been used with actual client data. A PyQt5 migration was recently attempted (2026-02-07) on a separate branch but has **not been merged to main** — the production code remains Tkinter-based. The cell mappings configuration was last expanded on 2025-10-30, adding 6 new ITC report extraction sheets, suggesting the tool is growing with the consultant's needs.
+The project is **actively maintained and production-used**. The git history shows real-world bug fixes (circular imports, threading issues, long path handling) suggesting it has been used with actual client data. A PyQt5 migration was attempted (2026-03-04) on a separate branch but **was never merged to main** and the branch was subsequently abandoned — the production code remains Tkinter-based. The most recent commit on `main` (fc279af) added the initial project audit document.
+
+Current state: **Functional but with significant issues**. The main organizer works end-to-end on Windows with Tkinter. The Power Query Extractor works but has hardcoded Windows dependencies (`import pythoncom`, `import win32com.client`) without graceful fallback at the module level, meaning it will crash on import on non-Windows platforms. There is a stale version reference in `main.py` docstring (says v3.0) but the UI says v3.0 too, which is consistent. The `requirements.txt` is incomplete — it lists `openpyxl` and `lxml` but omits `pywin32`, which is critical for the application's core Power Query functionality.
 
 ---
 
@@ -24,9 +27,13 @@ The project appears **actively maintained and production-used**. The git history
 AnnualStatement/                         [ROOT - Entry point directory]
 ├── main.py                              [CORE] Entry point - launches main GUI app
 ├── launch_extractor.py                  [CORE] Separate entry point for Power Query Extractor
-├── requirements.txt                     [CONFIG] Python dependencies
-├── README.md                            [DOCS] Comprehensive usage documentation
-├── .gitignore                           [CONFIG] Git exclusion rules
+├── requirements.txt                     [CONFIG] Python dependencies (INCOMPLETE - missing pywin32)
+├── README.md                            [DOCS] Comprehensive usage documentation (364 lines)
+├── PROJECT_AUDIT_ANNUALSTATEMENT.md     [DOCS] This audit document
+├── .gitignore                           [CONFIG] Git exclusion rules (79 lines)
+│
+├── .claude/                             [TOOLING] Claude Code AI assistant settings
+│   └── settings.local.json              [TOOLING] Permits `python -m py_compile` via Bash
 │
 ├── core/                                [CORE] Business logic layer
 │   ├── __init__.py                      [CORE] Package init - exports FileParser, FileOrganizer, ExcelHandler
@@ -35,150 +42,320 @@ AnnualStatement/                         [ROOT - Entry point directory]
 │   └── excel_handler.py                 [CORE] Creates Excel reports from templates, writes summary reports
 │
 ├── utils/                               [UTIL] Shared utilities and constants
-│   ├── __init__.py                      [UTIL] Package init - re-exports everything
+│   ├── __init__.py                      [UTIL] Package init (minimal, just docstring)
 │   ├── constants.py                     [CONFIG] All regex patterns, folder templates, GUI config, state codes
 │   └── helpers.py                       [UTIL] File operations, path utilities, validation, progress tracking
 │
 ├── gui/                                 [UI] Tkinter GUI layer
-│   ├── __init__.py                      [UI] Package init - exports GSTOrganizerApp
+│   ├── __init__.py                      [UI] Package init - exports GSTOrganizerApp from main_window
 │   ├── main_window.py                   [UI] Main application window - ties all components together
 │   ├── handlers/                        [UI] Event handler modules
-│   │   ├── __init__.py                  [UI] Package init
+│   │   ├── __init__.py                  [UI] Package init (empty docstring)
 │   │   ├── file_handler.py              [UI] Browse dialogs, scan validation
 │   │   ├── client_handler.py            [UI] Client tree selection, keyboard navigation, export
 │   │   └── processing_handler.py        [UI] Processing thread, report creation, progress updates
 │   ├── tabs/                            [UI] Tab panel modules
-│   │   ├── __init__.py                  [UI] Package init
-│   │   ├── setup_tab.py                 [UI] Step 1: folder/template selection UI
-│   │   ├── validation_tab.py            [UI] Step 2: client review/selection UI
-│   │   └── processing_tab.py            [UI] Step 3: progress/log display UI
+│   │   ├── __init__.py                  [UI] Package init (empty docstring)
+│   │   ├── setup_tab.py                 [UI] Step 1 - folder/template selection
+│   │   ├── validation_tab.py            [UI] Step 2 - client review and selection
+│   │   └── processing_tab.py            [UI] Step 3 - progress display and log
 │   ├── utils/                           [UI] GUI utility modules
-│   │   ├── __init__.py                  [UI] Package init
-│   │   ├── cache_manager.py             [UI] Save/load settings to JSON file
-│   │   ├── dark_mode_manager.py         [UI] Dark/light theme switching
-│   │   ├── status_bar.py               [UI] Bottom status bar widget
-│   │   └── ui_helpers.py                [UI] Shared UI creation helpers
-│   └── widgets/                         [UI] Custom widget modules
-│       ├── __init__.py                  [UI] Package init
-│       ├── collapsible_frame.py         [UI] Expandable/collapsible section widget
-│       └── title_bar.py                 [UI] Application title bar with dark mode toggle
+│   │   ├── __init__.py                  [UI] Package init (empty docstring)
+│   │   ├── cache_manager.py             [UI] JSON-based settings persistence (~/.gst_organizer_cache.json)
+│   │   ├── dark_mode_manager.py         [UI] Theme switching between light and dark
+│   │   ├── status_bar.py                [UI] Bottom status bar widget
+│   │   └── ui_helpers.py                [UI] Static methods for log messages, progress, colored sections
+│   └── widgets/                         [UI] Reusable widget components
+│       ├── __init__.py                  [UI] Package init (empty docstring)
+│       ├── collapsible_frame.py         [UI] Expandable/collapsible frame widget
+│       └── title_bar.py                 [UI] Title bar with dark mode toggle
 │
 └── power_query_extractor/               [CORE] Separate sub-application for PQ operations
-    ├── __init__.py                      [CORE] Package init
-    ├── extractor_main.py                [CORE] Launcher class - loads cache, starts GUI
+    ├── __init__.py                      [CORE] Package init (version only)
+    ├── extractor_main.py                [CORE] Entry point class for PQ extractor
     ├── config/                          [CONFIG] Extraction configuration
-    │   ├── __init__.py                  [CONFIG] Package init
-    │   └── cell_mappings.py             [CONFIG] Master config: which cells to extract from which sheets
+    │   ├── __init__.py                  [CONFIG] Package init (empty)
+    │   └── cell_mappings.py             [CONFIG] Master cell mapping configuration (editable by user)
     ├── core/                            [CORE] Processing logic
-    │   ├── __init__.py                  [CORE] Package init
-    │   ├── report_processor.py          [CORE] Excel COM automation: refresh Power Query, extract cell values
-    │   └── data_consolidator.py         [CORE] Creates consolidated extraction report across all clients
+    │   ├── __init__.py                  [CORE] Package init (empty)
+    │   ├── report_processor.py          [CORE] Excel COM automation for Power Query refresh
+    │   └── data_consolidator.py         [CORE] Creates consolidated Excel reports from extracted data
     └── gui/                             [UI] Extractor GUI
-        ├── __init__.py                  [UI] Package init
-        └── extractor_window.py          [UI] Tkinter window for PQ extractor with two tabs
+        ├── __init__.py                  [UI] Package init (empty)
+        └── extractor_window.py          [UI] Tkinter window for PQ extractor
+
 ```
 
 ### Entry Points
-- **Primary:** `python main.py` — Launches the main GST File Organizer GUI
-- **Secondary:** `python launch_extractor.py` — Launches the Power Query Extractor GUI separately
 
-### Dead/Orphan Files
-- None detected in current codebase. All files are imported and used.
-- Note: A file `cell_mappings copy.py` existed in the initial commit (a backup copy of cell_mappings.py) but was removed in commit `47a1492`.
+| File | Command | Purpose |
+|------|---------|---------|
+| `main.py` | `python main.py` | Launches the main GST File Organizer GUI |
+| `launch_extractor.py` | `python launch_extractor.py` | Launches the Power Query Extractor GUI |
+
+### Dead Code Analysis
+
+| Type | Location | Evidence |
+|------|----------|----------|
+| Dead method | `helpers.py:422` `calculate_file_hash()` | Never called from any file in the project. Grep for `calculate_file_hash` returns only its definition. |
+| Dead method | `helpers.py:446` `extract_filename_without_extension()` | This IS called from `excel_handler.py:576,588,598,614,631,646` via import. NOT dead. |
+| Dead method | `data_consolidator.py:250` `_write_section()` | Never called from anywhere. The `create_report()` method was rewritten to use `EXTRACTION_CONFIG` directly, making this legacy method dead. |
+| Dead method | `data_consolidator.py:354` `_create_details_sheet()` | Never called from anywhere. Was likely used in an earlier version before `EXTRACTION_CONFIG` was introduced. |
+| Dead constant | `constants.py:180` `TEMPLATE_EXTENSIONS` | Never referenced outside its definition. |
+| Dead constant | `constants.py:182` `EXCEL_SIGNATURES` | Never referenced outside its definition. The actual signature checking in `helpers.py:240-241` uses hardcoded byte values instead of this constant. |
+| Dead method | `cache_manager.py:50-55` `get_cached_value()` and `set_cached_value()` | Never called from any file. Only `load_cache()` and `save_cache()` are used. |
+| Dead parameter | `file_parser.py:308` `get_statistics()` return value `'parsing_rate'` | Computed but displayed in `main_window.py:280` — actually IS used. NOT dead. |
+| Dead class reference | `main.py:72` references `gui/app.py` in error message | The file `gui/app.py` does not exist. The actual file is `gui/main_window.py`. This is a stale error message from an earlier structure. |
+| Stale comment | `helpers.py:15` says `# ADD THIS LINE` | AI-generated instruction comment left in production code. |
+| Stale comment | `file_parser.py:16` says `# ADD THIS` | Same issue — leftover AI instruction. |
+| Stale comment | `file_organizer.py:15` says `# ADD THESE` | Same issue. |
+| Stale comment | `excel_handler.py:39` says `# ADD THESE TWO` | Same issue. |
 
 ---
 
 ## SECTION 3: FEATURE INVENTORY
 
 ### F1: File Scanning and Pattern Matching
-- **What it does:** Scans a user-selected folder for Excel files, matches each filename against 6 predefined regex patterns (GSTR-2B Reco, IMS Reco, GSTR-3B, Sales, Sales Reco, Annual Report), extracts client name, state, and period information from the filename, and groups files by client-state combinations.
-- **Where it lives:** `core/file_parser.py` (FileParser class), `utils/constants.py` (FILE_PATTERNS dict, lines 13-62)
-- **Input -> Output:** A folder path containing Excel files -> A dictionary of client data (keyed by "ClientName-StateCode"), a dict of scanned files, and a list of "variations" (files that didn't match any pattern)
-- **User interaction:** User selects a source folder in Setup tab, clicks "Scan Files" button
 
-### F2: Client Completeness Analysis
-- **What it does:** After scanning, checks each client against the 6 expected file types. Marks clients as "Complete" (all 6 types present), "Missing N files" (some types absent), or "Has duplicates". Calculates a completeness percentage. Special rule: GSTR-3B can have multiple files (monthly filings) without being flagged as duplicate.
-- **Where it lives:** `core/file_parser.py`, method `_analyze_client_completeness()` (lines 252-286)
-- **Input -> Output:** Parsed client data -> Same data enriched with status, missing files list, completeness percentage
-- **User interaction:** Automatically runs after scanning; results shown in Validation tab's client tree
+**What it does:** Scans a user-selected folder for Excel files, matches each filename against 6 predefined regex patterns (GSTR-2B Reco, IMS Reco, GSTR-3B, Sales, Sales Reco, Annual Report), extracts client name and state from the filename, and groups files by client.
 
-### F3: File Organization (Folder Structure Creation)
-- **What it does:** Creates a hierarchical folder structure and copies files into it. Structure: `Target/Annual Statement-DDMMYY HHMM/ClientName-StateCode/Version-DDMMYY HHMM/[category folders]`. Category folders: "GSTR-3B Exports", "Other ITC related files", "Sales related files". Optionally includes the client name in parentheses in category folder names.
-- **Where it lives:** `core/file_organizer.py` (FileOrganizer class)
-- **Input -> Output:** Client data + target folder + processing mode -> Created folder tree with files copied into correct locations
-- **User interaction:** User selects clients, clicks "Start Processing" in Validation or Processing tab. Three modes: Fresh (new structure), Re-Run (add version folder to existing), Resume (skip existing files)
+**Where it lives:** `core/file_parser.py` (FileParser class), `utils/constants.py` (FILE_PATTERNS dict, lines 13-62)
+
+**Input → Output:**
+- Input: A folder path containing Excel files with standardized names
+- Output: Three data structures — `scanned_files` (dict of all parsed files), `client_data` (dict keyed by "ClientName-StateCode"), `variations` (list of unparseable files)
+
+**User interaction:** User clicks "Scan Files" button on Setup tab. Progress updates shown in status bar.
+
+**Concrete trace:** User has folder with files: `GSTR3B-Reliance-Maharashtra-Apr24.xlsx`, `Sales-Reliance-Maharashtra-Apr-Jun.xlsx`, `AnnualReport-Reliance-Maharashtra-2024.xlsx`.
+1. `scan_folder()` calls `find_excel_files()` which globs for *.xlsx/*.xls/*.xlsm
+2. Each file is validated via `validate_excel_file()` (checks extension, minimum 1KB size, ZIP/OLE signature)
+3. `parse_filename()` tries each regex pattern — GSTR3B pattern matches `GSTR3B-Reliance-Maharashtra-Apr24.xlsx`, extracts client="Reliance", state="Maharashtra"
+4. `_add_to_client_data()` converts "Maharashtra" to "MH" via `get_state_code()`, creates key "Reliance-MH"
+5. `_analyze_client_completeness()` checks found types vs EXPECTED_FILE_TYPES — finds 3 of 6, marks as "Missing 3 files"
+6. The GSTR3B regex `^(?:\(\d+\)\s*)?GSTR3B-` also handles `(1) GSTR3B-...` prefix (Windows duplicate download naming)
+
+**Bug found during trace:** The `_analyze_client_completeness()` method at line 278 checks `if not missing and not extras` for "Complete" status. But `extras` only contains strings about duplicates, not about unexpected extra files — so a client with one file of each type but also a seventh unrecognized file would still be "Complete". This is arguably correct behavior since unrecognized files go to `variations`, not to client data.
+
+### F2: Folder Structure Creation
+
+**What it does:** Creates a hierarchical folder structure in the target directory for each client being processed.
+
+**Where it lives:** `core/file_organizer.py` (FileOrganizer class)
+
+**Input → Output:**
+- Input: Target folder path, processing mode (fresh/rerun/resume), client info dict
+- Output: Dict mapping folder keys to Path objects:
+  - `level1`: `Annual Statement-DDMMYY HHMM/`
+  - `level2`: `ClientName-StateCode/`
+  - `version`: `Version-DDMMYY HHMM/`
+  - `gstr3b`: `GSTR-3B Exports (ClientName)/` or `GSTR-3B Exports/`
+  - `itc`: `Other ITC related files (ClientName)/` or `Other ITC related files/`
+  - `sales`: `Sales related files (ClientName)/` or `Sales related files/`
+
+**User interaction:** Automatic during processing. The user controls whether client names appear in parentheses via a checkbox.
+
+**Concrete trace:** Fresh run for client "Reliance-MH", include_client_name=False:
+1. `_get_level1_folder()` creates `Annual Statement-050326 1430/` (current timestamp)
+2. `create_client_state_key("Reliance", "Maharashtra", max_length=35)` → "Reliance-MH"
+3. Level 2 folder: `Annual Statement-050326 1430/Reliance-MH/`
+4. Version folder: `Annual Statement-050326 1430/Reliance-MH/Version-050326 1430/`
+5. Category folders (without client name): `GSTR-3B Exports/`, `Other ITC related files/`, `Sales related files/`
+
+### F3: File Organization (Copy and Sanitize)
+
+**What it does:** Copies source Excel files into the appropriate category folders, sanitizing filenames (replacing "Private" with "Pvt", "Limited" with "Ltd", removing invalid characters).
+
+**Where it lives:** `core/file_organizer.py` (organize_files method, lines 181-231)
+
+**Input → Output:**
+- Input: Client info with file lists, folder structure dict
+- Output: Files physically copied to destination folders. Returns list of operation results (Success/Failed/Skipped).
+
+**Key behavior:** After copying, the method updates `client_info['files'][file_type][i]['name']` with the sanitized filename. This is critical because the ExcelHandler later reads these names to populate template cells. If the original filename had characters like apostrophes, the sanitized version is what gets written to the template.
+
+**Concrete trace:** Source file `Sales-Reliance Private Limited-Maharashtra-Apr-Jun.xlsx`:
+1. `sanitize_filename()` replaces "Private" → "Pvt", "Limited" → "Ltd"
+2. Result: `Sales-Reliance_Pvt_Ltd-Maharashtra-Apr-Jun.xlsx` (spaces become underscores via regex)
+3. File copied to `Sales related files/Sales-Reliance_Pvt_Ltd-Maharashtra-Apr-Jun.xlsx`
+4. Size verification: source and destination sizes compared; if mismatch, dest deleted and returns False
+5. `client_info['files']['Sales'][0]['name']` updated to `Sales-Reliance_Pvt_Ltd-Maharashtra-Apr-Jun.xlsx`
 
 ### F4: Excel Report Generation (ITC and Sales)
-- **What it does:** Copies an Excel template file to the client's version folder, then writes file paths and filenames into specific cells on a "Links" sheet. This allows the template's Power Query connections to find the data files. On Windows, uses Excel COM automation (win32com) to preserve Power Query; on other OS, falls back to openpyxl (which may lose Power Query).
-- **Where it lives:** `core/excel_handler.py` (ExcelHandler class), `utils/constants.py` (EXCEL_TEMPLATE_MAPPING, lines 96-120)
-- **Input -> Output:** Template file + client's organized files + folder paths -> ITC_Report_Client_State_Timestamp.xlsx and Sales_Report_Client_State_Timestamp.xlsx
-- **User interaction:** Automatic during processing. User provides template files in Setup tab.
 
-### F5: Processing Summary Report
-- **What it does:** Creates a master Excel summary with 5 sheets: Summary (statistics), Client Status (per-client status), File Mapping (source-to-destination for every file), Errors (any errors encountered), Variations (files that didn't match patterns). Uses professional formatting with headers, borders, and color coding.
-- **Where it lives:** `core/excel_handler.py`, method `create_summary_report()` (lines 319-549)
-- **Input -> Output:** Processing results data -> GST_Processing_Summary_Timestamp.xlsx saved in Level 1 folder
-- **User interaction:** Automatic at end of processing
+**What it does:** Creates ITC and Sales Excel reports by copying template files and writing folder paths and filenames into specific cells of a "Links" sheet. On Windows, uses Excel COM automation (win32com) to preserve Power Query connections. Falls back to openpyxl on other platforms (loses Power Query).
 
-### F6: Organization Text Report
-- **What it does:** Creates a plain text file per client documenting what folders were created, which files were organized, and statistics about the operation.
-- **Where it lives:** `core/file_organizer.py`, method `create_organization_report()` (lines 300-362)
-- **Input -> Output:** Client info + folders -> _Organization_Report_Client_State.txt
-- **User interaction:** Automatic during processing
+**Where it lives:** `core/excel_handler.py` (ExcelHandler class, lines 65-274)
 
-### F7: Power Query Refresh
-- **What it does:** Opens Excel reports using COM automation, sends keyboard shortcuts (Alt+A, R, A = "Refresh All") to trigger Power Query refresh, waits a configurable number of seconds, checks for error dialogs, validates refresh by checking cell BB2 in an "Info" sheet, then saves the refreshed copy with a suffix like "_Refreshed_DDMMYY_HHMM".
-- **Where it lives:** `power_query_extractor/core/report_processor.py` (ReportProcessor class)
-- **Input -> Output:** Excel report file -> Refreshed copy of the file with Power Query data populated
-- **User interaction:** User launches PQ Extractor, selects clients and ITC/Sales checkboxes, configures wait time, clicks "Start Processing"
+**Input → Output:**
+- Input: Template file path, output path, data mappings (folder paths and filenames), report type ("ITC" or "Sales")
+- Output: New Excel file at output path with Links sheet cells populated
 
-### F8: Cell Value Extraction
-- **What it does:** Opens refreshed Excel files, reads specific cell values from specific sheets as defined in cell_mappings.py, and stores them for consolidation. Supports 9 extraction configurations: GSTR-3B Difference, GSTR-1 Difference, Turnover GSTR-1, Reco Diff, Table 6J Match, Table 8D Limits, IMS Reco, Extra In Purchase, Extra In GSTR2B.
-- **Where it lives:** `power_query_extractor/core/report_processor.py` method `_extract_data()` (lines 486-595), `power_query_extractor/config/cell_mappings.py`
-- **Input -> Output:** Refreshed Excel files + cell mapping config -> Dictionary of extracted values per client
-- **User interaction:** Automatic after Power Query refresh
+**Template cell mappings** (from `constants.py:96-120`):
 
-### F9: Consolidated Extraction Report
-- **What it does:** Creates a master Excel workbook with one sheet per extraction configuration (9 sheets), plus a Summary sheet. Each sheet shows client names in rows and extracted values in columns, with success/failure indicators and number formatting.
-- **Where it lives:** `power_query_extractor/core/data_consolidator.py` (DataConsolidator class)
-- **Input -> Output:** All client extraction results -> PQ_Extraction_Report_Timestamp.xlsx in the Annual Statement folder
-- **User interaction:** Automatic at end of PQ Extractor processing
+ITC Template Links sheet:
+| Cell | Data Key | Value Written |
+|------|----------|---------------|
+| B2 | gstr3b_folder | Windows path to GSTR-3B folder |
+| B4 | annual_folder | Windows path to Version folder |
+| B5 | annual_filename | Annual report filename without extension |
+| B7 | gstr2b_folder | Windows path to ITC folder |
+| B8 | gstr2b_filename | GSTR-2B Reco filename without extension |
+| B10 | ims_folder | Windows path to ITC folder |
+| B11 | ims_filename | IMS Reco filename without extension |
 
-### F10: Session Persistence (Cache)
-- **What it does:** Saves and restores user settings (source folder, template paths, target folder, processing mode, dark mode preference, client name options) to a JSON file at `~/.gst_organizer_cache.json`. Also maintains a list of last 5 source folders used.
-- **Where it lives:** `gui/utils/cache_manager.py` (CacheManager class), `gui/main_window.py` methods `save_cache()` and `apply_cached_values()`
-- **Input -> Output:** Application state -> JSON file, and vice versa on startup
-- **User interaction:** Automatic on every settings change and application startup
+Sales Template Links sheet:
+| Cell | Data Key | Value Written |
+|------|----------|---------------|
+| B2 | sales_folder | Windows path to Sales folder |
+| B3 | sales_filename | Sales filename without extension |
+| B5 | annual_folder | Windows path to Version folder |
+| B6 | annual_filename | Annual report filename without extension |
+| B8 | sales_reco_folder | Windows path to Sales folder |
+| B9 | sales_reco_filename | Sales Reco filename without extension |
 
-### F11: Dark Mode
-- **What it does:** Toggles between light and dark color themes by recursively walking all Tkinter widgets and changing their background/foreground colors. Stores original colors on initialization for restoration. Updates tree view tag colors for dark mode.
-- **Where it lives:** `gui/utils/dark_mode_manager.py` (DarkModeManager class)
-- **Input -> Output:** Boolean toggle -> All widget colors changed
-- **User interaction:** Checkbox in title bar labeled "Dark Mode"
+**Win32COM path (lines 103-228):**
+1. Calls `pythoncom.CoInitialize()`
+2. Tries `GetActiveObject("Excel.Application")` first (reuses running Excel), falls back to `Dispatch`
+3. Copies template to output location via `shutil.copy2`
+4. Opens copied file via `_safe_open_workbook()` which handles long paths (>218 chars) with 8.3 short path fallback
+5. Finds "Links" sheet (case-insensitive, also tries partial match on "link")
+6. Writes values to cells via `ws.Range(cell_ref).Value = str(value)`
+7. Saves and closes
+8. Calls `pythoncom.CoUninitialize()` in finally block
 
-### F12: Client List Export
-- **What it does:** Exports the list of selected clients to a text file with timestamps.
-- **Where it lives:** `gui/handlers/client_handler.py`, method `export_client_list()` (lines 221-253)
-- **Input -> Output:** Selected clients -> Text file + auto-opens in default editor
-- **User interaction:** "Export List" button in Validation tab
+**Concrete trace:** ITC report for Reliance-MH:
+1. Template copied to `Version-050326 1430/ITC_Report_Reliance_MH_050326_1430.xlsx`
+2. Excel COM opens the copy
+3. Finds "Links" sheet
+4. Writes: B2 = `D:\target\Annual Statement-050326 1430\Reliance-MH\Version-050326 1430\GSTR-3B Exports`
+5. Writes: B4 = version folder path, B5 = `AnnualReport-Reliance-MH-2024` (no extension)
+6. Saves and closes
 
-### F13: Dry Run Preview
-- **What it does:** Shows what would happen during processing without actually copying files or creating reports. Logs each client and their files to the processing log.
-- **Where it lives:** `gui/handlers/processing_handler.py`, method `dry_run()` (lines 23-52)
-- **Input -> Output:** Selected clients -> Log messages showing planned operations
-- **User interaction:** "Dry Run" button in Validation tab
+### F5: Summary Report Generation
 
-### F14: State Name to Code Conversion
-- **What it does:** Converts full Indian state names (e.g., "Maharashtra") to two-letter codes (e.g., "MH") for shorter folder names. Includes 30+ state/territory mappings plus alternative names (e.g., "Orissa" -> "OD", "Pondicherry" -> "PY"). Falls back to creating abbreviations from first letters for unknown states.
-- **Where it lives:** `utils/constants.py` (STATE_CODE_MAPPING, lines 234-275), `utils/helpers.py` method `get_state_code()` (lines 485-511)
-- **Input -> Output:** Full state name string -> 2-3 letter code string
-- **User interaction:** Automatic during folder creation. Affects folder names (e.g., "ClientName-MH" instead of "ClientName-Maharashtra")
+**What it does:** Creates a comprehensive Excel summary report at the Level 1 folder (Annual Statement root) containing 5 sheets: Summary, Client Status, File Mapping, Errors, and Variations.
 
-### F15: Configurable Client Folder Names
-- **What it does:** Lets users control two aspects of folder naming: (1) a global checkbox to include client names in category folder names (e.g., "GSTR-3B Exports (ClientName)" vs "GSTR-3B Exports"), and (2) a per-client toggle in the tree view's FolderName column. Also provides a configurable maximum length for client folder names (default 35, range 15-100). Warns when client names exceed 10 characters.
-- **Where it lives:** `gui/tabs/setup_tab.py` (processing mode section), `gui/handlers/client_handler.py` (toggle methods), `core/file_organizer.py` (create_client_structure, lines 107-135)
-- **Input -> Output:** User preferences -> Folder names with or without client name suffixes
-- **User interaction:** Checkbox in Setup tab + per-client toggle in Validation tab tree + spinbox for max length
+**Where it lives:** `core/excel_handler.py` (create_summary_report method, lines 319-357), sheets created by private methods `_create_summary_sheet`, `_create_client_status_sheet`, etc.
+
+**Input → Output:**
+- Input: Output path, report_data dict containing all processing results
+- Output: `GST_Processing_Summary_DDMMYY_HHMM.xlsx` with 5 formatted sheets
+
+**User interaction:** Automatic at end of processing. Not user-triggered separately.
+
+### F6: Dry Run Preview
+
+**What it does:** Shows what would happen during processing without actually copying files or creating reports.
+
+**Where it lives:** `gui/handlers/processing_handler.py` (dry_run method, lines 23-52)
+
+**Input → Output:**
+- Input: Selected client list
+- Output: Log messages showing which files would be organized and which reports would be created
+
+**Bug found:** Lines 41-48 use `lambda` inside a loop but capture `client_info` by reference, not by value. Since `lambda: self.app.log_message(...)` captures the variable `client_info`, and the loop reassigns it, all deferred `root.after` calls will log the LAST client's info, not each client's. The same bug exists for `file_info` on line 46. This means the dry run log will show incorrect filenames — it will repeat the last file's name for all entries.
+
+> **This is a confirmed silent bug**: The dry run output looks correct in structure but shows wrong file/client names. The actual processing (F8) has the same pattern but with a different impact — since processing creates real files, the visible output (folders, files) is correct, but the log messages displayed to the user during processing show stale/incorrect values for the same reason.
+
+### F7: Client Selection and Management
+
+**What it does:** Displays clients in a treeview with checkboxes, supports keyboard navigation (arrow keys + space), selection helpers (Select All, Clear All, Complete Only), and per-client folder name settings.
+
+**Where it lives:** `gui/handlers/client_handler.py` (ClientHandler class), `gui/tabs/validation_tab.py` (creates the treeview)
+
+**Input → Output:**
+- Input: Scanned client data
+- Output: Visual tree display with selection state
+
+**User interaction:** Click tree column #0 to toggle selection, click FolderName column (#7) to toggle per-client folder name inclusion. Space key toggles selection on focused item.
+
+**Concrete trace:** 10 clients scanned, user clicks "Complete Only":
+1. `select_complete_clients()` iterates all tree items
+2. Checks if column index 2 (Status) contains "Complete"
+3. Sets checkbox to ☑ for complete clients, ☐ for others
+4. Updates status bar: "Selected 6 complete clients"
+
+### F8: Full Processing Pipeline
+
+**What it does:** The main processing operation that ties everything together — creates folders, copies files, generates ITC and Sales reports for each selected client, creates organization reports, and produces a master summary.
+
+**Where it lives:** `gui/handlers/processing_handler.py` (process_files_thread method, lines 119-463)
+
+**Input → Output:**
+- Input: List of selected client keys
+- Output: Complete organized folder structure with all files and reports
+
+**User interaction:** "Start Processing" button. Runs in a background daemon thread. Stop button available. Progress bar and detailed log updated in real-time via `root.after(0, ...)`.
+
+**Thread safety note:** All UI updates from the processing thread use `self.app.root.after(0, lambda: ...)` to marshal calls to the main thread. This was added in commit `6237597` to fix threading bugs. However, the lambda variable capture bug (see F6) means log messages may show stale values.
+
+### F9: Dark Mode
+
+**What it does:** Toggles between light and dark themes across the entire application.
+
+**Where it lives:** `gui/utils/dark_mode_manager.py` (DarkModeManager class)
+
+**Input → Output:**
+- Input: Dark mode checkbox toggle
+- Output: All widgets re-themed. Setting persisted to cache.
+
+**Implementation:** Recursively walks all widgets via `winfo_children()`, stores original colors on first run, applies dark palette (`#2b2b2b` bg, `#ffffff` fg, `#3b3b3b` widget bg) or restores originals.
+
+### F10: Settings Persistence (Cache)
+
+**What it does:** Saves and loads application settings (source folder, template paths, target folder, processing mode, dark mode state, client name settings) to a JSON file in the user's home directory.
+
+**Where it lives:** `gui/utils/cache_manager.py` (CacheManager class)
+
+**Cache file location:** `~/.gst_organizer_cache.json` (user's home directory)
+
+**Shared state verification:**
+- **Writer:** `main_window.py:328-340` calls `save_cache()` with keys: `source_folder`, `itc_template`, `sales_template`, `target_folder`, `processing_mode`, `include_client_name`, `dark_mode`, `client_name_max_length`
+- **Reader:** `main_window.py:342-356` calls `apply_cached_values()` reading the same keys
+- **Cross-app reader:** `power_query_extractor/extractor_main.py:36-60` and `extractor_window.py:473-485` both read `target_folder` from `gst_organizer_cache.json`
+- **Mismatch found:** The main app writes cache to `Path.home() / '.gst_organizer_cache.json'` (lines cache_manager.py:15). But `extractor_main.py:39` looks for `gst_organizer_cache.json` (in current directory, no dot prefix, no home directory). And `extractor_window.py:28` looks for `gst_organizer_cache.json` (also current directory). **This means the PQ Extractor will NOT find the main app's cache** unless the current working directory is the user's home directory OR a separate `gst_organizer_cache.json` exists in the project directory. This is a **confirmed bug** — the cache paths are inconsistent between the two apps.
+
+### F11: Power Query Refresh and Data Extraction
+
+**What it does:** Opens Excel reports via COM automation, triggers Power Query refresh (via SendKeys Alt+A, R, A), waits for completion, validates results, then extracts specific cell values from designated sheets.
+
+**Where it lives:** `power_query_extractor/core/report_processor.py` (ReportProcessor class)
+
+**Input → Output:**
+- Input: Client data with paths to report files
+- Output: Refreshed Excel files (saved with suffix), extracted cell values dict
+
+**Key implementation details:**
+1. Creates a copy of the original report with configurable suffix (default: `_Refreshed_{timestamp}`)
+2. Opens Excel COM instance (visible, to avoid COM issues)
+3. Sends keyboard shortcut Alt+A → R → A (Refresh All) via `WScript.Shell.SendKeys`
+4. Waits configurable time (default 10 seconds, range 5-60)
+5. Checks for error dialogs by enumerating Windows windows
+6. Validates refresh by checking cell BB2 in "Info" sheet for non-empty/non-zero/non-error value
+7. Saves and closes
+8. Opens a NEW Excel instance (hidden) for data extraction
+9. Reads cells according to `CELL_MAPPINGS` config
+
+**Bug: Unreachable code** at line 342-345 in `_refresh_power_query_simple()`: There's a `return {'success': True, 'error': None}` after the try block's except clause. This return is unreachable because the try block (starting at line 217) always returns in either the try body (line 329) or the except body (line 337-340). The unreachable return at 342 never executes.
+
+### F12: Data Consolidation Report
+
+**What it does:** Creates a multi-sheet Excel report consolidating extracted values from all processed clients, with one sheet per configured extraction (GSTR-3B Difference, GSTR-1 Difference, Turnover, Reco Diff, etc.).
+
+**Where it lives:** `power_query_extractor/core/data_consolidator.py` (DataConsolidator class)
+
+**Input → Output:**
+- Input: List of processing results (one per client), output folder path
+- Output: `PQ_Extraction_Report_YYYYMMDD_HHMM.xlsx` with sheets for each EXTRACTION_CONFIG entry plus a Summary sheet
+
+### F13: Export Client List
+
+**What it does:** Exports selected client names to a text file and opens it.
+
+**Where it lives:** `gui/handlers/client_handler.py` (export_client_list method, lines 221-253)
+
+**Platform concern:** Uses `os.startfile(filename)` at line 251, which is Windows-only. Will crash on macOS/Linux.
 
 ---
 
@@ -187,307 +364,354 @@ AnnualStatement/                         [ROOT - Entry point directory]
 ### Main Application Flow
 
 ```
-User selects Source Folder
-        ↓
-[file_parser.py: scan_folder()]
-        ↓
-Find all .xlsx/.xls/.xlsm files in folder
-        ↓
-For each file: validate Excel signature (ZIP or OLE header) + check size > 1KB
-        ↓
-For each valid file: match filename against 6 regex patterns
-        ↓
-Extract client name, state, period from regex groups
-        ↓
-Group by "ClientName-StateCode" key → client_data dictionary
-        ↓
-Analyze completeness (6 expected file types per client)
-        ↓
-Display in GUI: summary statistics + client tree with status icons
-        ↓
-User selects clients → clicks "Start Processing"
-        ↓
-[file_organizer.py: create_client_structure()]
-        ↓
-Create: Target/Annual Statement-DDMMYY HHMM/ClientName-StateCode/Version-DDMMYY HHMM/
-        ↓
-Create category subfolders: GSTR-3B Exports, Other ITC related files, Sales related files
-        ↓
-[file_organizer.py: organize_files()]
-        ↓
-Copy each file to its category folder (with filename sanitization + size verification)
-        ↓
-Update client_info with sanitized filenames (critical for Excel template paths)
-        ↓
-[excel_handler.py: create_report_from_template()]
-        ↓
-Copy ITC template → write folder paths + filenames to Links sheet cells (B2-B11)
-Copy Sales template → write folder paths + filenames to Links sheet cells (B2-B9)
-        ↓
-[excel_handler.py: create_summary_report()]
-        ↓
-Create master summary Excel with 5 sheets
-        ↓
-Open output folder in file explorer
+User selects source folder
+         ↓
+    [SCAN FILES]
+         ↓
+Source Folder → find_excel_files() → list of .xlsx/.xls paths
+         ↓
+For each file → validate_excel_file() → check signature (PK\x03\x04 or \xd0\xcf\x11\xe0)
+         ↓
+For each valid file → parse_filename() → regex match against 6 patterns
+         ↓
+Matched files → _add_to_client_data() → grouped by "ClientName-StateCode" key
+         ↓
+Unmatched files → variations list (with suggested correct pattern)
+         ↓
+_analyze_client_completeness() → marks each client Complete/Missing N files
+         ↓
+Results displayed in GUI: summary text + client treeview
+         ↓
+    [USER SELECTS CLIENTS]
+         ↓
+    [START PROCESSING]
+         ↓
+For each selected client:
+    ├── FileOrganizer.create_client_structure() → creates folder hierarchy
+    ├── FileOrganizer.organize_files() → copies files to category folders
+    │   └── sanitize_filename() → clean file names
+    │   └── safe_copy_file() → copy with size verification
+    ├── ExcelHandler.prepare_template_data() → build cell→value mappings
+    ├── ExcelHandler.create_report_from_template('ITC') → ITC report
+    │   ├── [Windows] win32com: copy template, open, write Links sheet, save
+    │   └── [Other] openpyxl: copy template, open, write Links sheet, save
+    ├── ExcelHandler.create_report_from_template('Sales') → Sales report
+    └── FileOrganizer.create_organization_report() → text log file
+         ↓
+ExcelHandler.create_summary_report() → master summary Excel at Level 1
+         ↓
+os.startfile(level1_folder) → opens output in file explorer
 ```
 
 ### Power Query Extractor Flow
 
 ```
-User launches launch_extractor.py (or standalone)
-        ↓
-Load target folder from cache (~/.gst_organizer_cache.json)
-        ↓
-Scan Annual Statement folder for client subfolders
-        ↓
-For each client: find latest Version folder, check for ITC_Report_*.xlsx and Sales_Report_*.xlsx
-        ↓
-Display client list with ITC/Sales checkboxes and last refresh timestamps
-        ↓
-User selects clients/reports → clicks "Start Processing"
-        ↓
-For each selected client+report:
-    ↓
-    Copy report file → add "_Refreshed_DDMMYY_HHMM" suffix
-    ↓
-    Open copy in Excel via COM automation (visible window)
-    ↓
-    Send keyboard shortcuts: Alt → A → R → A (Refresh All)
-    ↓
-    Wait configurable seconds (default 10) + extended wait (at least 10 more)
-    ↓
-    Check for Excel error dialogs → close them if found
-    ↓
-    Validate: read cell BB2 in "Info" sheet (should have client name)
-    ↓
-    Save and close workbook
-    ↓
-    Open refreshed file in new hidden Excel instance
-    ↓
-    Read configured cell values from configured sheets (cell_mappings.py)
-    ↓
-    Store extracted values
-        ↓
-[data_consolidator.py: create_report()]
-        ↓
-Create PQ_Extraction_Report_YYYYMMDD_HHMM.xlsx with 9 data sheets + Summary
+User launches launch_extractor.py
+         ↓
+Loads target_folder from cache (BUG: wrong path - see F10)
+         ↓
+Scans for "Annual Statement-*" folders → finds latest
+         ↓
+For each client subfolder:
+    └── Finds latest "Version-*" subfolder
+    └── Checks for ITC_Report_*.xlsx and Sales_Report_*.xlsx
+         ↓
+Displays client list with ITC/Sales checkboxes
+         ↓
+    [START PROCESSING]
+         ↓
+For each selected client:
+    ├── Copy report → add "_Refreshed_{timestamp}" suffix
+    ├── Open in Excel COM (visible)
+    ├── SendKeys: Alt+A, R, A (Refresh All)
+    ├── Wait configurable seconds
+    ├── Check for error dialogs (enumerate windows)
+    ├── Validate: check Info sheet cell BB2
+    ├── Save and close
+    ├── Open NEW Excel instance (hidden)
+    ├── Extract cells per CELL_MAPPINGS config
+    └── Close
+         ↓
+DataConsolidator.create_report() → PQ_Extraction_Report_*.xlsx at Level 1
+         ↓
+Offer to open report
+```
+
+### Settings/Cache Data Flow
+
+```
+Main App (gui/utils/cache_manager.py)
+    WRITES TO: ~/.gst_organizer_cache.json
+    Keys: source_folder, itc_template, sales_template, target_folder,
+          processing_mode, include_client_name, dark_mode,
+          client_name_max_length, recent_folders[]
+
+PQ Extractor (power_query_extractor/)
+    READS FROM: ./gst_organizer_cache.json  ← MISMATCH! Different path!
+    Keys read: target_folder
 ```
 
 ---
 
 ## SECTION 5: BUSINESS RULES AND DOMAIN LOGIC
 
-### File Naming Patterns (constants.py, lines 13-62)
+### File Naming Patterns
 
-| File Type | Regex Pattern | Example |
-|-----------|--------------|---------|
-| GSTR-2B Reco | `^GSTR-2B-Reco-([^-]+)-([^-]+)-(.+)\.xlsx?$` | GSTR-2B-Reco-ABCLtd-Maharashtra-Apr24.xlsx |
-| IMS Reco | `^ImsReco-([^-]+)-([^-]+)-(\d{8})\.xlsx?$` | ImsReco-ABCLtd-Maharashtra-30042024.xlsx |
-| GSTR-3B | `^(?:\(\d+\)\s*)?GSTR3B-([^-]+)-([^-]+)-([^-]+)\.xlsx?$` | GSTR3B-ABCLtd-Maharashtra-Apr24.xlsx |
-| Sales | `^Sales-([^-]+)-([^-]+)-([^-]+)-([^-]+)\.xlsx?$` | Sales-ABCLtd-Maharashtra-Apr-Jun.xlsx |
-| Sales Reco | `^SalesReco-([^-]+)-([^-]+)-(.+)\.xlsx?$` | SalesReco-ABCLtd-Maharashtra-Q1.xlsx |
-| Annual Report | `^AnnualReport-([^-]+)-([^-]+)-(.+)\.xlsx?$` | AnnualReport-ABCLtd-Maharashtra-2024.xlsx |
+| Pattern Key | Regex | File Type | Category |
+|-------------|-------|-----------|----------|
+| GSTR-2B-Reco | `^GSTR-2B-Reco-([^-]+)-([^-]+)-(.+)\.xlsx?$` | GSTR-2B Reco | ITC |
+| ImsReco | `^ImsReco-([^-]+)-([^-]+)-(\d{8})\.xlsx?$` | IMS Reco | ITC |
+| GSTR3B | `^(?:\(\d+\)\s*)?GSTR3B-([^-]+)-([^-]+)-([^-]+)\.xlsx?$` | GSTR-3B Export | GSTR3B |
+| Sales | `^Sales-([^-]+)-([^-]+)-([^-]+)-([^-]+)\.xlsx?$` | Sales | Sales |
+| SalesReco | `^SalesReco-([^-]+)-([^-]+)-(.+)\.xlsx?$` | Sales Reco | Sales |
+| AnnualReport | `^AnnualReport-([^-]+)-([^-]+)-(.+)\.xlsx?$` | Annual Report | Annual |
 
-> **Important:** The GSTR-3B pattern includes an optional `(\d+)` prefix to handle browser download numbering like "(1) GSTR3B-..." — this was a real-world edge case (constants.py, line 31).
+Key rules:
+- All patterns are case-insensitive (`re.IGNORECASE`) — `constants.py:15-61`
+- GSTR3B pattern handles Windows duplicate prefix `(1) GSTR3B-...` — `constants.py:32`
+- ImsReco requires exactly 8-digit date format — `constants.py:24`
+- Sales requires exactly 4 groups (client, state, start_month, end_month) — `constants.py:39-44`
+- The `[^-]+` group means hyphens WITHIN client names will break parsing. A client named "ABC-XYZ Ltd" would be mis-parsed.
 
-### File Categorization Rules (constants.py, lines 13-62; file_organizer.py, lines 285-298)
+### Expected File Types per Client
 
-| File Type | Category | Destination Folder |
-|-----------|----------|-------------------|
-| GSTR-3B Export | GSTR3B | `GSTR-3B Exports (ClientName)/` |
-| GSTR-2B Reco | ITC | `Other ITC related files (ClientName)/` |
-| IMS Reco | ITC | `Other ITC related files (ClientName)/` |
-| Sales | Sales | `Sales related files (ClientName)/` |
-| Sales Reco | Sales | `Sales related files (ClientName)/` |
-| Annual Report | Annual | Version folder root (not in a subfolder) |
+A "complete" client must have ALL of these file types (`constants.py:68-75`):
+1. GSTR-2B Reco
+2. IMS Reco
+3. GSTR-3B Export
+4. Sales
+5. Sales Reco
+6. Annual Report
 
-### Completeness Rules (file_parser.py, lines 252-286)
-- A client is "Complete" when all 6 file types are present AND no unexpected duplicates exist
-- GSTR-3B is exempt from duplicate checking (multiple monthly filings are expected)
-- All other types flag as duplicates if more than 1 file exists
+**Special rule:** GSTR-3B Export allows unlimited duplicates (monthly filings) — `file_parser.py:267-268`. All other types flag duplicates as warnings.
 
-### Excel Template Cell Mappings (constants.py, lines 96-120)
+### State Code Mapping
 
-**ITC Template "Links" sheet:**
-| Cell | Value Written |
-|------|--------------|
-| B2 | GSTR-3B folder path (Windows backslash format) |
-| B4 | Annual Report folder path |
-| B5 | Annual Report filename (without extension) |
-| B7 | GSTR-2B Reco folder path |
-| B8 | GSTR-2B Reco filename (without extension) |
-| B10 | IMS Reco folder path |
-| B11 | IMS Reco filename (without extension) |
+Full Indian state/UT name → 2-letter code mapping at `constants.py:234-274`. Includes alternative names:
+- "orissa" → "OD" (old name for Odisha)
+- "pondicherry" → "PY" (old name for Puducherry)
+- "national capital territory of delhi" → "DL"
+- "dadra and nagar haveli and daman and diu" → "DD" (merged UT)
 
-**Sales Template "Links" sheet:**
-| Cell | Value Written |
-|------|--------------|
-| B2 | Sales file folder path |
-| B3 | Sales filename (without extension) |
-| B5 | Annual Report folder path |
-| B6 | Annual Report filename (without extension) |
-| B8 | Sales Reco folder path |
-| B9 | Sales Reco filename (without extension) |
+Fallback for unknown states (`helpers.py:502-510`): takes first letters of words (2-word → first letter of each, 1-word → first 3 chars).
 
-### Data Extraction Cell Mappings (cell_mappings.py, lines 33-242)
+### Filename Sanitization Rules
 
-| Output Sheet | Source Sheet | Cell | Output Column | Report Type |
-|-------------|-------------|------|---------------|-------------|
-| GSTR-3B Difference | Diff GSTR-3B | J15 | Diff IGST | ITC |
-| GSTR-3B Difference | Diff GSTR-3B | K15 | Diff CGST | ITC |
-| GSTR-3B Difference | Diff GSTR-3B | L15 | Diff SGST | ITC |
-| GSTR-1 Difference | Diff - GSTR-1 | N1 | Diff Taxable Value | Sales |
-| GSTR-1 Difference | Diff - GSTR-1 | O1 | Diff IGST | Sales |
-| GSTR-1 Difference | Diff - GSTR-1 | P1 | Diff CGST | Sales |
-| GSTR-1 Difference | Diff - GSTR-1 | Q1 | Diff SGST | Sales |
-| Turnover GSTR-1 | Diff - GSTR-1 | I1 | Taxable Value | Sales |
-| Reco Diff | Reco | C37, D37, E37 | IGST/CGST/SGST Diff | ITC |
-| Table 6J Match | T6 of R9 | K29 | Table 6J Match | ITC |
-| Table 8D Limits | T8 of R9 | G6 | Table 8D Limits | ITC |
-| IMS Reco | IMS_Reco | AA1, AD1, AG1 | IGST/CGST/SGST | ITC |
-| Extra In Purchase | ExtraInPurchase | O1, P1, Q1 | IGST/CGST/SGST | ITC |
-| Extra In GSTR2B | ExtraInGSTR2B | S1, T1, U1 | IGST/CGST/SGST | ITC |
+Applied at `helpers.py:66-112`:
+1. "Private" → "Pvt", "Limited" → "Ltd" (case-sensitive!)
+2. Invalid chars `<>:"/\|?*[]{}+=!@#$%^,;'"\`~` replaced with `_`
+3. Control characters (ASCII 0-31, 127-159) replaced with `_`
+4. Hyphens `-` are PRESERVED (deliberately excluded from invalid chars)
+5. Multiple spaces/underscores collapsed to single `_`
+6. Leading/trailing `_`, `.`, spaces stripped
+7. Max length: 200 chars (default), leaving room for extension
 
-### Filename Sanitization Rules (helpers.py, lines 66-112)
-- "Private" → "Pvt", "Limited" → "Ltd" (business abbreviations applied first)
-- Characters `<>:"/\|?*[]{}+=!@#$%^,;'"\`~` are replaced with underscore
-- Control characters (ASCII 0-31, 127-159) replaced with underscore
-- Hyphens are deliberately PRESERVED (not in the invalid characters list)
-- Multiple spaces/underscores collapsed to single underscore
-- Leading/trailing underscores and dots stripped
-- Maximum length: 200 characters (minus extension length minus 10)
+### Client Name Length Limit
 
-### Client-State Key Rules (helpers.py, lines 513-537)
-- Format: `ClientName-StateCode` (e.g., "ABC Pvt Ltd-MH")
-- "Private" → "Pvt", "Limited" → "Ltd" (case-insensitive)
-- State name converted to 2-letter code via STATE_CODE_MAPPING
-- Maximum key length: configurable (default 35 characters)
-- If key exceeds max length, client name is truncated (minimum 5 characters preserved)
+`create_client_state_key()` at `helpers.py:513-537`:
+- Default max length: 35 characters (configurable via GUI spinbox, range 15-100)
+- If key exceeds max, client name is truncated to fit while preserving state code and hyphen
+- Minimum client name length after truncation: 5 characters
 
-### Excel File Validation Rules (helpers.py, lines 210-247)
-- File must exist and be a regular file
-- Extension must be one of: .xlsx, .xls, .xlsm, .xltx, .xltm
-- File size must be at least 1,024 bytes (1 KB)
-- File must start with either `PK\x03\x04` (ZIP/xlsx) or `\xD0\xCF\x11\xE0` (OLE/xls)
+### Folder Structure Template
 
-### Power Query Refresh Validation (report_processor.py, lines 597-644)
-- After refresh, checks cell BB2 in an "Info" sheet
-- Fails if: cell is None, blank, "0", "0.0", or any Excel error value (#REF!, #VALUE!, #NAME?, #NULL!, #DIV/0!, #N/A, #NUM!, #ERROR!)
-- Success means BB2 contains a non-empty, non-zero, non-error value (expected to be client name)
+Defined at `constants.py:81-90`:
+```
+Level 1: Annual Statement-{timestamp}         (DDMMYY HHMM format)
+Level 2: {client}-{state}                     (using state CODE, not full name)
+Level 3: Version-{timestamp}
+Level 4 categories:
+  - GSTR-3B Exports ({client})               (client name in parens if enabled)
+  - Other ITC related files ({client})
+  - Sales related files ({client})
+```
 
-### Long Path Handling (report_processor.py, lines 646-755; excel_handler.py, lines 275-317)
-- Excel has a ~218 character path limit
-- If path exceeds 218 chars, tries Windows 8.3 short path names via `win32api.GetShortPathName()`
-- Also tries Windows extended path format (`\\?\` prefix)
-- Multiple retry attempts with different path strategies
+### File Type → Destination Folder Mapping
+
+Defined at `file_organizer.py:288-295`:
+| File Type | Destination Folder Key |
+|-----------|----------------------|
+| GSTR-3B Export | gstr3b |
+| GSTR-2B Reco | itc |
+| IMS Reco | itc |
+| Sales | sales |
+| Sales Reco | sales |
+| Annual Report | version (root of Version folder) |
+
+### Excel Validation Rules
+
+At `helpers.py:210-247`:
+- Must exist and be a file
+- Extension must be one of: `.xlsx`, `.xls`, `.xlsm`, `.xltx`, `.xltm`
+- File size must be ≥ 1024 bytes (1KB)
+- File header must start with `PK\x03\x04` (ZIP/XLSX) or `\xd0\xcf\x11\xe0` (OLE/XLS)
+
+### Client Name Validation
+
+At `helpers.py:321-342`:
+- Cannot be empty/whitespace
+- Minimum 2 characters
+- Maximum 100 characters
+- Cannot contain: `<>:"/\|?*`
+
+### Processing Modes
+
+At `constants.py:157-173`:
+- **fresh**: Create new timestamped folder structure. If destination file exists, create backup.
+- **rerun**: Find latest existing "Annual Statement-" folder, create new Version subfolder.
+- **resume**: Find latest existing folder. If destination file already exists, skip it.
+
+### Power Query Refresh Validation
+
+At `report_processor.py:597-644`:
+- Checks "Info" sheet exists in workbook
+- Reads cell BB2
+- Fails if: None, empty string, "0", "0.0", or any Excel error value (#REF!, #VALUE!, #NAME?, #NULL!, #DIV/0!, #N/A, #NUM!, #ERROR!)
+- Success: BB2 contains a non-empty, non-zero, non-error string (expected to be client name)
+
+### Operational Constants
+
+| Constant | Value | Location | Purpose |
+|----------|-------|----------|---------|
+| MAX_FILE_SIZE_MB | 100 | constants.py:181 | Never actually enforced — dead constant |
+| max_retries | 3 | constants.py:218 | Excel save retries — not used in current code |
+| retry_delay | 1 sec | constants.py:219 | Delay between retries — not used |
+| temp_prefix | "temp_gst_" | constants.py:220 | Temp file naming — not used |
+| verification_size_min | 10240 (10KB) | constants.py:222 | Min file size for verification — not used |
+| wait_time | 10 sec | report_processor.py:27 | Default Power Query refresh wait |
+| Long path threshold | 218 chars | excel_handler.py:304, report_processor.py:676 | Triggers 8.3 short path fallback |
+| Unique path safety limit | 100 | helpers.py:363 | Max attempts to create unique filename |
+| Short path fallback | win32api.GetShortPathName | helpers.py:476-478 | Only on Windows, with graceful except |
 
 ---
 
 ## SECTION 6: EDGE CASES AND DEFENSIVE CODE
 
-### File Operations
-- **Empty files:** Files under 1KB are rejected during Excel validation (helpers.py, line 232) — treats them as corrupted
-- **Missing columns/sheets:** When the "Links" sheet is not found in a template, the code tries to find any sheet with "link" in its name, and if that fails, creates a new sheet (excel_handler.py, lines 147-164)
-- **Copy verification:** After every file copy, source and destination file sizes are compared; mismatched copies are deleted (helpers.py, lines 172-177)
-- **Existing files in fresh mode:** Creates backups with timestamp suffix before overwriting (file_organizer.py, lines 260-265)
-- **Existing files in resume mode:** Skips files that already exist (file_organizer.py, lines 266-269)
-- **Unique path generation:** If a file/folder already exists, appends _1, _2, etc. up to _100 (helpers.py, lines 344-363)
-- **Empty folders on error:** Cleans up empty version folders if processing fails in fresh mode (file_organizer.py, lines 364-390)
+### File System Edge Cases
 
-### Excel COM Automation
-- **Excel already running:** Attempts to reuse existing Excel instance before creating new one (excel_handler.py, lines 121-126)
-- **Workbook already open:** Checks if file is already open and reuses it (excel_handler.py, lines 285-288; report_processor.py, lines 665-668)
-- **COM initialization/cleanup:** Every COM operation bracket with `pythoncom.CoInitialize()` and `CoUninitialize()` in try/finally blocks
-- **Error dialogs during refresh:** Scans for visible error windows by window class and title text, attempts to click OK/Close buttons, falls back to sending WM_CLOSE message (report_processor.py, lines 376-484)
-- **Excel properties retry:** Setting Excel.Visible and other properties retries up to 5 times with 2-second delays (report_processor.py, lines 181-193)
-- **"Call was rejected by callee" error:** Retries workbook opening 3 times with 3-second delays (report_processor.py, lines 198-208)
+| Edge Case | Handling | Location | Rating |
+|-----------|----------|----------|--------|
+| Source folder doesn't exist | Raises FileNotFoundError | file_parser.py:154 | ROBUST |
+| Source folder is a file, not directory | Raises ValueError | file_parser.py:156 | ROBUST |
+| No Excel files in folder | Returns empty results, logs warning | file_parser.py:159-161 | ROBUST |
+| Corrupted Excel file (bad signature) | Excluded from processing, added to variations | file_parser.py:186-194 | ROBUST |
+| File smaller than 1KB | Treated as corrupted, excluded | helpers.py:232 | ROBUST |
+| Destination file already exists (fresh mode) | Creates backup with timestamp suffix | file_organizer.py:260-265 | ROBUST |
+| Destination file already exists (resume mode) | Skipped | file_organizer.py:266-269 | ROBUST |
+| Long Windows paths (>218 chars) | Falls back to 8.3 short path via win32api | excel_handler.py:296-317 | MODERATE |
+| Network drive disconnection | Not handled — will throw generic Exception | — | FRAGILE |
+| File locked by another process | Not explicitly handled — relies on generic Exception catch | — | FRAGILE |
 
-### GUI Thread Safety
-- Processing runs in a daemon thread (processing_handler.py, line 107-112)
-- GUI updates from processing thread use `self.app.root.after(0, lambda: ...)` to schedule on main thread
-- Processing can be stopped via `self.app.stop_requested` flag checked at each client iteration
+### Data Edge Cases
 
-### Data Handling
-- **Empty client/state names:** Validation in file_parser.py flags these as errors (lines 343-356)
-- **Client name length validation:** Names must be 2-100 characters, no filesystem-invalid characters (helpers.py, lines 321-342)
-- **Unknown state names:** Falls back to abbreviation from first letters of words (helpers.py, lines 502-511)
-- **Alternative state names:** "Orissa" maps to same code as "Odisha", "Pondicherry" maps to same as "Puducherry" (constants.py, lines 255, 274)
+| Edge Case | Handling | Location | Rating |
+|-----------|----------|----------|--------|
+| Empty client name from parsing | Logged as warning, still processed | file_parser.py:114-116 | MODERATE |
+| Unknown state name | Fallback abbreviation generated (first letters) | helpers.py:502-510 | ROBUST |
+| Client name > 100 chars | validate_client_name returns error | helpers.py:334-335 | MODERATE (warning only, doesn't block) |
+| Empty filename | Returns "unnamed" | helpers.py:70-71 | ROBUST |
+| Unicode in filenames | Control characters replaced with underscore | helpers.py:85-88 | MODERATE |
+| Hyphen in client name | Breaks regex parsing (treated as field separator) | constants.py patterns | FRAGILE |
+| Duplicate client-state combinations | Files merged into same client_data entry | file_parser.py:226-246 | ROBUST |
 
-### Overall Rating: **MODERATE**
+### Error Handling Patterns
 
-The code handles many common edge cases (file validation, path issues, COM errors) but has gaps in some areas (see Section 7).
+| Pattern | Used in | Rating |
+|---------|---------|--------|
+| Try-except with logging + re-raise | file_parser.py scan_folder | ROBUST |
+| Try-except with fallback value | helpers.py validate_excel_file | ROBUST |
+| Bare except (catches everything silently) | excel_handler.py:62,124,222-228,263,545 | FRAGILE |
+| Thread exception → messagebox | processing_handler.py:455-458 | MODERATE |
+| COM cleanup in finally block | excel_handler.py:206-228, report_processor.py:353-374 | ROBUST |
+
+**Overall defensive coding rating: MODERATE** — Common paths are well-handled, but bare except clauses hide errors, and several Windows-specific operations have no cross-platform fallback.
 
 ---
 
 ## SECTION 7: EDGE CASES NOT HANDLED (GAPS AND VULNERABILITIES)
 
+### Critical Gaps
+
+1. **Cache path mismatch (F10):** Main app writes cache to `~/.gst_organizer_cache.json` but PQ Extractor reads from `./gst_organizer_cache.json`. The extractor will fail to find the main app's settings unless manually configured.
+
+2. **Lambda variable capture in loops (F6):** Multiple locations in `processing_handler.py` use `lambda` inside for loops without capturing the loop variable by value. Lines 41-48 (dry_run), 178, 181, 189, 195-200, 206, 216, 221, 237-239, etc. All log messages from the processing thread show the LAST iteration's values, not the current one. Fix: Use `lambda info=client_info: self.app.log_message(...)`.
+
+3. **Platform crashes in PQ Extractor:** `report_processor.py` imports `pythoncom`, `win32com.client`, `win32api`, `win32con`, `win32gui` at module level (lines 11-14) without any try/except guard. Importing this module on macOS/Linux will crash immediately with ImportError. Compare with `excel_handler.py:20-28` which does this correctly with a platform check.
+
+4. **os.startfile() calls without platform check:** `client_handler.py:251` uses `os.startfile()` which is Windows-only. Compare with `processing_handler.py:444-449` which correctly checks `platform.system()`. The client handler will crash on non-Windows when exporting a client list.
+
+5. **requirements.txt missing pywin32:** The file lists only `openpyxl` and `lxml`. The README correctly states `pywin32>=305` should be installed, but `requirements.txt` doesn't include it. A `pip install -r requirements.txt` on a fresh machine won't install pywin32.
+
+6. **Thread safety for shared mutable state:** `processing_handler.py` runs in a daemon thread and accesses `self.app.client_data`, `self.app.client_folder_settings`, and other shared state without locks. While Tkinter's GIL provides some protection, dictionary mutations during iteration could theoretically cause issues if the user navigates/rescans while processing.
+
+### Silent Logic Bugs
+
+7. **Sanitize filename case sensitivity:** `helpers.py:78-79` replaces "Private" and "Limited" with exact case. A filename with "PRIVATE" or "limited" won't be abbreviated. Compare with `helpers.py:517` (`create_client_state_key`) which uses `re.IGNORECASE` — inconsistent.
+
+8. **validate_client_name used for state validation:** `file_parser.py:113` calls `validate_client_name(result['state'])` to validate the state name. This works but is semantically wrong — a state name of "MH" (2 chars) passes, but a state name of "M" (1 char) would fail with "Client name too short".
+
+### Scenario-Based Failure Analysis
+
+9. **Different working directory:** `main.py:36` creates `logs/` and `temp/` directories relative to `__file__`, which is correct. But `extractor_main.py:39` looks for cache files relative to CWD, which varies depending on how the script is launched.
+
+10. **Second run on same data (fresh mode):** Creates a NEW `Annual Statement-{timestamp}` folder. Previous run's output is untouched. Safe but may confuse users about which is the latest.
+
+11. **Two instances running simultaneously:** Both would write to the same cache file. Both would try to create folders with the same timestamp. Both would try to use Excel COM — which can conflict if both open the same workbook.
+
+12. **Excel already open:** `excel_handler.py:122-123` tries `GetActiveObject` first, reusing a running Excel instance. If the user has files open in Excel, the COM automation might interact with those files unexpectedly. The `_safe_open_workbook` method (line 285) does check if the specific file is already open and reuses that workbook, which helps but doesn't prevent all conflicts.
+
+13. **Path with spaces in OneDrive:** The project itself lives at `d:\OneDrive 2\OneDrive\Python 2026\AnnualStatement` — a path with spaces. This works because Path objects handle spaces correctly, but the 218-character path limit check could trigger more often with long OneDrive paths.
+
 ### Missing Validations
-1. **No concurrent access protection:** If two instances run simultaneously targeting the same folder, files could be corrupted or overwritten without detection
-2. **No disk space check:** The tool doesn't verify sufficient disk space before starting a potentially large copy operation
-3. **Template validation is shallow:** Only checks for "Links" sheet existence, doesn't verify that the expected cells (B2, B4, etc.) exist or that Power Query connections are present
-4. **No GSTIN validation:** Despite being a GST tool, there is no validation of GSTIN numbers (15-digit alphanumeric codes that follow a specific format with check digits)
 
-### Error Conditions That Could Crash
-1. **Network path disconnection:** If source or target is on a network drive that disconnects mid-operation, the error handling may not gracefully recover
-2. **Excel process zombie:** If Excel crashes during COM automation, the COM object may become stale and subsequent operations will fail. The cleanup code uses bare try/except which swallows errors
-3. **Memory with very large files:** No file size limit enforcement during copy (MAX_FILE_SIZE_MB = 100 is defined in constants but never checked)
-4. **Regex backtracking:** The `[^-]+` patterns in file regex could be slow with unusual filenames containing many special characters
+14. **No template structure validation:** The code doesn't verify that template files actually contain a "Links" sheet before processing begins. The error only surfaces during report creation, after folders are already created and files copied.
 
-### Input Variations Not Handled
-1. **Files in subfolders:** Only scans the top level of the source folder (uses `folder_path.glob(pattern)` not `rglob`)
-2. **Mixed case extensions:** While patterns use `re.IGNORECASE`, the file finding uses hardcoded lowercase patterns (`*.xlsx`, `*.xls`, `*.xlsm`) which should work on Windows (case-insensitive FS) but may miss files on Linux
-3. **Unicode in filenames:** The sanitization removes control characters but doesn't handle full Unicode normalization — two visually identical names using different Unicode forms would be treated as different clients
-4. **Filenames with multiple hyphens in client name:** Since the regex uses `[^-]+` for client name capture, a client name like "ABC-DEF Corp" would only capture "ABC" as the client name and "DEF Corp" as the state
+15. **No disk space check:** No verification that sufficient disk space exists before copying potentially hundreds of files.
 
-### Performance Concerns
-5. **Sequential processing:** Clients are processed one at a time. With 50+ clients, each requiring Excel COM operations, this could take hours
-6. **No progress persistence:** If the application crashes mid-processing in "fresh" mode, there's no way to resume — must start over (the "resume" mode only works if the folder structure was already created)
-7. **Excel COM is fragile:** Using keyboard simulation (SendKeys) for Power Query refresh is inherently unreliable — any popup, notification, or focus change can break the sequence
-
-### Security Concerns
-8. **No file path sanitization for directory traversal:** The `sanitize_filename` function handles invalid characters but doesn't check for `..` path traversal in client names extracted from filenames
-9. **`os.startfile()` call:** After processing, automatically opens the output folder and export files using `os.startfile()` which could be exploited if filenames were crafted maliciously (though the risk is low since files come from the user's own folders)
-10. **Cache file in home directory:** Settings including file paths are stored in plaintext JSON in the user's home directory
-
-### Usability Gaps
-11. **No undo:** Once processing is complete, there's no way to undo the file organization
-12. **No progress for individual file copies:** The progress bar updates per-client, not per-file, so for a client with many files, the bar may appear stuck
-13. **Logging is excessive for production:** Many `[DEBUG]` log lines remain in production code (especially in excel_handler.py and processing_handler.py), though they've been partially cleaned up
+16. **No concurrent access protection:** No file locking on the cache file or output directories.
 
 ---
 
 ## SECTION 8: DESIGN DECISIONS (INFERRED)
 
-### Why Tkinter over PyQt5/wxPython?
-Tkinter is Python's built-in GUI library — no additional installation required. For a tool distributed to CA/GST consultants who may not be technical, minimizing dependencies is critical. **Confidence: HIGH** (the README specifically notes minimal dependencies, and a PyQt5 migration was later attempted but not deployed, suggesting the simplicity of Tkinter was valued)
+### D1: Tkinter over other GUI frameworks
+**Confidence: HIGH** — Tkinter is Python's built-in GUI library, requiring zero additional installation. For a non-programmer using AI assistance to build a tool, this is the path of least resistance. The PyQt5 migration attempt (branch `copilot-worktree-2026-03-04T11-52-56`) confirms this was reconsidered later but abandoned.
 
-### Why Two Separate Applications?
-The main organizer and Power Query Extractor are separate programs with separate entry points. This is because they serve different stages of the workflow: the organizer is run first (once per batch), then the extractor is run after the user has verified the organized files. Separating them also reduces the risk of the PQ Extractor's heavy Excel COM operations affecting the main app. **Confidence: HIGH** (the launch_extractor.py file specifically says "Run this file separately after GST Organizer processing")
+### D2: Win32COM for Excel operations (not openpyxl alone)
+**Confidence: HIGH** — The code explicitly states why at `excel_handler.py:3`: "WINDOWS VERSION - Uses Excel COM to preserve Power Query and all Excel features". openpyxl cannot refresh Power Query connections or preserve them in saved files. Using Excel COM via win32com is the ONLY way to preserve Power Query while programmatically modifying Excel files. The openpyxl fallback (lines 230-273) exists for non-Windows but explicitly warns "Power Query may not be preserved".
 
-### Why Excel COM Instead of Pure openpyxl?
-Power Query connections cannot be refreshed by openpyxl — they require the actual Excel application to execute. The win32com approach was chosen specifically to preserve Power Query functionality, which is the core value proposition for the extraction workflow. The openpyxl fallback exists for non-Windows platforms but explicitly warns that Power Query will be lost. **Confidence: HIGH** (excel_handler.py line 3: "WINDOWS VERSION - Uses Excel COM to preserve Power Query and all Excel features")
+### D3: Separate Power Query Extractor app
+**Confidence: HIGH** — The PQ Extractor is a post-processing step. The main organizer creates files and writes paths into templates. The PQ Extractor then opens those files, refreshes Power Query (which requires Excel to actually query external data sources), and extracts the results. These are logically sequential but temporally separated — the user may want to run the extractor days later or multiple times. Having it as a separate app makes sense.
 
-### Why Keyboard Simulation for Power Query Refresh?
-The Excel COM API does have a `RefreshAll()` method, but it's known to be unreliable with complex Power Query connections — it may return before the refresh is complete, or not trigger all connection types. The SendKeys approach (Alt+A, R, A) uses the same UI path a human would use, which is more reliable but fragile. **Confidence: MEDIUM** (the extensive retry logic, error window detection, and configurable wait times all suggest this approach was arrived at through trial and error)
+### D4: File-based cache (JSON in home directory) instead of database
+**Confidence: HIGH** — Simple, portable, no dependencies. For a single-user desktop app saving 8 settings, a database would be over-engineering. The JSON cache at `~/.gst_organizer_cache.json` is appropriate.
 
-### Why State Codes Instead of Full Names?
-Windows has a 260-character path limit. With nested folders (Annual Statement/Client-State/Version/Category/filename.xlsx), long state names like "Dadra and Nagar Haveli and Daman and Diu" would quickly exceed the limit. State codes keep paths short. **Confidence: HIGH** (the commit `6237597` added state code functions alongside fixes for path-related issues, and report_processor.py has extensive long-path handling code)
+### D5: Regex-based filename parsing instead of folder-based organization
+**Confidence: MEDIUM** — The tool requires specific filename patterns. This is likely because the consultant's existing workflow already produces files with these names (from the GST portal's export functionality or from the consultant's own naming convention). The tool adapts to existing naming rather than requiring a new folder structure as input.
 
-### Why Copy Files Instead of Move/Link?
-The README explicitly states "Original files are never modified." Copying preserves the original files as a safety measure — if something goes wrong with the organized copies, the originals are untouched. **Confidence: HIGH** (the safe_copy_file function includes verification, and backups are created when overwriting)
+### D6: State code abbreviation for folder names
+**Confidence: HIGH** — Using "MH" instead of "Maharashtra" keeps folder names shorter, which matters because Windows has a 260-character path limit. The code at `file_organizer.py:87` explicitly comments "Use state code instead of full name". The `get_short_path()` fallback and 218-character threshold check further confirm path length was a real problem encountered in production.
 
-### Why Sanitize Filenames But Preserve Hyphens?
-Hyphens are part of the GST file naming convention (e.g., "GSTR-2B-Reco-Client-State-Period"). Removing them would break the naming pattern. Other special characters are removed because they could cause issues with Excel formulas, Windows paths, or the regex parsing. **Confidence: HIGH** (helpers.py line 81: "Define invalid characters WITHOUT including hyphen" — the comment is explicit)
+### D7: Processing in a daemon thread
+**Confidence: HIGH** — Tkinter's main loop blocks on `mainloop()`. Processing multiple clients with Excel COM operations can take minutes. Running in a daemon thread with `root.after(0, ...)` for UI updates is the standard Tkinter approach for long-running operations.
 
-### Why a Configurable Client Name Max Length?
-This was added to handle the Windows path length limit problem. Some client names are very long ("ABC Private Limited Industries"), and when combined with folder nesting, they exceed 260 characters. The default of 35 characters was likely chosen through experimentation. **Confidence: HIGH** (the feature was added in commit `c258047` alongside other path-length fixes)
+### D8: Modular handler architecture
+**Confidence: MEDIUM** — The GUI is split into tabs, handlers, widgets, and utils. This is a common AI-generated code pattern where separation of concerns is applied somewhat mechanically. The handlers (file_handler, client_handler, processing_handler) each take `app_instance` as constructor argument and access shared state through it. This avoids circular imports but creates tight coupling.
 
-### Evidence of Iteration and Refinement
-- **Commented-out code:** None found in current codebase — it was cleaned up
-- **Debug logging:** Extensive `[DEBUG]` log lines in excel_handler.py and processing_handler.py suggest these areas were particularly difficult to get right and were debugged extensively
-- **The `cell_mappings copy.py` file** in the initial commit was a backup copy that was removed later — suggests the mappings were being actively developed and the backup was a safety measure
-- **The Sales report creation code** in processing_handler.py has 6 numbered "debug checkpoints" (lines 268-343) — this suggests the Sales report generation was failing in production and required systematic debugging
-- **Multiple retry patterns** in report_processor.py (5 retries for Excel properties, 3 for workbook open, multiple path strategies) suggest each was added after encountering a specific failure in real use
+### D9: Client name in folder brackets is optional
+**Confidence: HIGH** — The `include_client_name_in_folders` checkbox and per-client FolderName toggle were added to handle the trade-off between descriptive folder names (useful when browsing) and path length (shorter is safer for Windows).
+
+### Pattern Consistency Check
+
+| Pattern | Established By | Consistent? |
+|---------|---------------|-------------|
+| Platform check for win32 imports | `excel_handler.py:20-28` (try/except with platform check) | **INCONSISTENT**: `report_processor.py:11-14` imports without any guard |
+| os.startfile cross-platform | `processing_handler.py:444-449` (platform.system() check) | **INCONSISTENT**: `client_handler.py:251` uses os.startfile without check |
+| Thread-safe UI updates | `processing_handler.py` (root.after for all UI calls) | **CONSISTENT** across processing_handler |
+| Logging pattern | All modules use `logger = logging.getLogger(__name__)` | **CONSISTENT** |
+| Error handling in COM operations | `excel_handler.py` uses try/finally with cleanup | **CONSISTENT** with `report_processor.py` |
+| Cache file path | Main app: `Path.home() / '.gst_organizer_cache.json'` | **INCONSISTENT**: PQ Extractor: `Path("gst_organizer_cache.json")` (CWD) |
+| Case sensitivity in filename abbreviations | `helpers.py:78-79` case-sensitive | **INCONSISTENT**: `helpers.py:517` uses re.IGNORECASE |
 
 ---
 
@@ -497,141 +721,136 @@ This was added to handle the Windows path length limit problem. Some client name
 
 | Library | Version | Purpose | Required? |
 |---------|---------|---------|-----------|
-| openpyxl | >= 3.1.2 | Read/write Excel .xlsx files, create summary reports | **Yes** |
-| lxml | >= 4.9.0 | Faster XML parsing for openpyxl (Excel files are XML inside ZIP) | Optional, recommended |
-| pywin32 | (not in requirements.txt) | Excel COM automation for Power Query refresh | **Yes for PQ features** |
-
-> **Note:** The requirements.txt lists only openpyxl and lxml. pywin32 is mentioned in the README but not in requirements.txt. The code handles its absence gracefully (falls back to openpyxl-only mode).
+| openpyxl | ≥3.1.2 | Excel file creation/reading (non-Power Query) | YES |
+| lxml | ≥4.9.0 | Faster XML parsing for openpyxl | Recommended |
+| pywin32 | Not specified | Excel COM automation for Power Query | YES on Windows (MISSING from requirements.txt) |
 
 ### Python Version
-- Minimum: Python 3.7 (uses f-strings, Path objects, typing module)
-- Recommended: Python 3.8+ (as stated in README)
-- Evidence of Python 3.12 and 3.13 usage: the initial commit included __pycache__ files compiled with both versions
+
+- Minimum: 3.7 (stated in requirements.txt comment and README)
+- Uses: f-strings (3.6+), `Path` (3.4+), `typing` (3.5+), `defaultdict` (2.5+), `dataclass` not used
+- No 3.10+ features (no match/case, no `|` union types)
 
 ### OS-Specific Dependencies
-- **Windows:** Required for Power Query features (win32com, pythoncom, win32gui, win32api, win32con)
-- **macOS/Linux:** Can run the file organizer but cannot do Power Query refresh or extraction
-- **Windows path format:** The `clean_windows_path()` function always converts to backslashes for Excel compatibility
+
+| Module | Used In | Platform | Fallback |
+|--------|---------|----------|----------|
+| `win32com.client` | excel_handler.py, report_processor.py | Windows only | openpyxl (excel_handler.py), NONE (report_processor.py) |
+| `pythoncom` | excel_handler.py, report_processor.py | Windows only | Same as above |
+| `win32api` | helpers.py, report_processor.py | Windows only | Returns original path (helpers.py), CRASHES (report_processor.py) |
+| `win32con` | report_processor.py | Windows only | CRASHES on import |
+| `win32gui` | report_processor.py | Windows only | CRASHES on import |
+| `os.startfile()` | processing_handler.py, client_handler.py, extractor_window.py | Windows only | platform check (processing_handler only) |
+| `tkinter` | All GUI modules | All platforms | Built-in with Python |
 
 ### File System Assumptions
-- Source folder contains Excel files at the top level (no recursive scanning)
-- Target folder must be writable
-- Cache file stored at `~/.gst_organizer_cache.json` (user's home directory)
-- Log files: `gst_organizer.log` (main app), `pq_extractor.log` (extractor) — written to current working directory
-- Temp files: `%TEMP%/gst_excel_temp/` — used by ExcelHandler for temporary Excel operations
-- Windows 260-character path limit is actively worked around
 
-### Setup Steps for Fresh Machine
-1. Install Python 3.8+ from python.org (check "Add to PATH")
-2. Download/clone this repository
-3. Open terminal in project directory
-4. `pip install openpyxl lxml`
-5. For Power Query features on Windows: `pip install pywin32` then run `python Scripts/pywin32_postinstall.py -install` as administrator
-6. `python main.py` to launch
+- Windows path separators used for Excel paths (`clean_windows_path()`)
+- 260-character Windows path limit considered (218 threshold for Excel COM)
+- OneDrive paths expected (based on project location)
+- Home directory writable (for cache file)
+- Temp directory writable (for Excel temp files: `%TEMP%/gst_excel_temp/`)
+
+### Setup Steps (Fresh Machine)
+
+1. Install Python 3.7+ with "Add to PATH" checked
+2. `pip install openpyxl>=3.1.2`
+3. `pip install lxml>=4.9.0`
+4. `pip install pywin32>=305` (Windows only)
+5. Run `python Scripts/pywin32_postinstall.py -install` as admin (Windows, for COM registration)
+6. Download project files
+7. `python main.py` to launch organizer
+8. `python launch_extractor.py` to launch PQ extractor
 
 ---
 
 ## SECTION 10: UI/INTERFACE DOCUMENTATION
 
-### Main Application Window (main_window.py)
+### Main Application Window (GSTOrganizerApp)
 
-**Window Properties:**
-- Title: "GST File Organizer v3.0"
-- Size: 1200x800 pixels, minimum 1000x700
-- Theme: 'clam' ttk style
-- Centered on screen at launch
+**Window size:** 1200×800, minimum 1000×700
+**Theme:** Clam ttk theme, custom colors (primary blue #0078D4, success green #107C10)
+**Layout:** Title bar at top, tabbed notebook in center, status bar at bottom
 
-**Title Bar (title_bar.py):**
-- Blue banner (#0078D4) with white text
-- Title: "GST FILE ORGANIZER & REPORT GENERATOR"
-- Subtitle: "Organize files and generate Excel reports automatically"
-- Dark Mode checkbox in top-right corner
+#### Title Bar
+- Blue (#0078D4) background, 70px height
+- Title: "🏢 GST FILE ORGANIZER & REPORT GENERATOR" in 18pt bold white
+- Subtitle: "Organize files and generate Excel reports automatically" in 11pt
+- Dark Mode checkbox (🌙 Dark Mode) in top-right corner
 
-**Tab 1: Setup (setup_tab.py)**
-- Two-column layout: left 60% for inputs, right 40% for help
-- Left column sections (top to bottom):
-  1. Welcome banner with green border
-  2. SOURCE FOLDER: Green header, text entry + Browse button
-  3. EXCEL TEMPLATES: Blue header, ITC template entry + Browse, Sales template entry + Browse
-  4. TARGET FOLDER: Red header (emphasized with warning banner), text entry + large Browse button
-  5. PROCESSING MODE: Cyan header, three radio buttons (Fresh/Re-Run/Resume), "Include client name" checkbox, max length spinbox
-  6. Action section: "SCAN FILES" green button + "RE-SCAN" orange button
-- Right column: Instructions card (blue) + Expected File Names card (purple)
-- Scrollable with mouse wheel
+#### Tab 1: Setup (📁 Step 1: Setup)
+Two-column layout (60/40 split):
 
-**Tab 2: Validation (validation_tab.py)**
-- Two-column layout: left 40% info, right 60% client list
-- Left column:
-  1. Collapsible instructions section (orange)
-  2. Scan Summary (blue header, Consolas font, read-only text showing statistics)
-  3. Action buttons: DRY RUN (orange), EXPORT LIST (cyan), START (green)
-- Right column:
-  1. CLIENT SELECTION header (green)
-  2. Keyboard hint: "Use arrows + SPACE to select"
-  3. Select All / Clear All / Complete Only buttons
-  4. TreeView with columns: Checkbox, Client Name, State, Status, Files, Missing, Extra, FolderName
-  5. Color coding: green background for complete, orange for incomplete
-  6. Horizontal and vertical scrollbars
+**Left Column:**
+1. Welcome banner (white card with blue text)
+2. **Source Folder** section (green header): Entry field + Browse button
+3. **Excel Templates** section (blue header): ITC template entry + browse, Sales template entry + browse
+4. **Target Folder** section (red header, emphasized): Entry field + Browse button with "🚨 IMPORTANT!" warning
+5. **Processing Mode** section (teal header): 3 radio buttons (Fresh/Re-Run/Resume), "Include client name" checkbox, client name max length spinbox (15-100, default 35)
+6. **Action Buttons** section: "🔍 SCAN FILES" (green) + "🔄 RE-SCAN" (orange)
 
-**Tab 3: Processing (processing_tab.py)**
-- Progress section (blue header):
-  - Progress bar (determinate mode)
-  - Progress percentage label
-  - Current operation label
-  - START PROCESSING (green) and STOP (red) buttons
-- Log section (green header):
-  - Dark-themed ScrolledText (black background #1E1E1E)
-  - Color-coded log levels: green=success, orange=warning, red=error, blue=info, white=normal
-  - Consolas 9pt font
-  - Timestamps on every line
+**Right Column:**
+1. Instructions card (blue): 5-step numbered guide
+2. File patterns card (purple): 6 expected file name formats
 
-**Status Bar:**
-- Dark gray bar (#323130) at bottom
-- Status message on left with lightbulb emoji
-- "v3.0 | Production Ready" on right
+#### Tab 2: Validation (✅ Step 2: Validation)
+Two-column layout (40/60 split):
 
-### Power Query Extractor Window (extractor_window.py)
+**Left Side:**
+1. Collapsible instructions (orange)
+2. Scan Summary (scrolled text widget, Consolas 9pt)
+3. Action buttons: "🧪 DRY RUN" (orange) + "📋 EXPORT LIST" (teal) + "🚀 START" (green)
 
-**Window Properties:**
-- Title: "Power Query Extractor"
-- Size: 1000x700 pixels, minimum 900x600
+**Right Side:**
+- Client Selection panel with:
+  - Keyboard hint: "⌨️ Use ↑↓ arrows + SPACE to select"
+  - Buttons: "☑️ Select All", "☐ Clear All", "✅ Complete Only"
+  - Treeview with columns: ✓, Client Name, State, Status, Files, Missing, Extra, FolderName
+  - Color coding: green (#E8F5E8) for complete, orange (#FFF4E5) for incomplete
 
-**Title Bar:**
-- Blue banner with "Power Query Report Extractor"
+#### Tab 3: Processing (🚀 Step 3: Processing)
+Vertical layout:
+1. Progress section: Progress bar + percentage label + current operation label
+2. Control buttons: "🚀 START PROCESSING" (green) + "⏹ STOP" (red, initially disabled)
+3. Log section: Dark-themed text widget (Consolas 9pt, #1E1E1E background), color-coded tags (success=green, warning=orange, error=red, info=blue)
 
-**Tab 1: Setup**
-- Two-column layout:
-- Left column (fixed 400px):
-  1. Target Folder: path entry + Browse + Scan buttons
-  2. Processing Options: wait time spinbox (5-60 seconds), file suffix pattern entry, skip refresh checkbox
-  3. Start Processing button (disabled until clients found)
-- Right column:
-  1. Client list with per-client ITC and Sales checkboxes
-  2. Buttons: Select All, Deselect All, ITC Only, Sales Only
-  3. Last Refresh Status shown per client
-  4. Scrollable with mouse wheel
+#### Status Bar
+- Dark (#323130) background, 30px height
+- Left: Status message with 💡 prefix
+- Right: "v3.0 | Production Ready"
 
-**Tab 2: Processing**
+### Power Query Extractor Window (PowerQueryExtractorApp)
+
+**Window size:** 1000×700, minimum 900×600
+**Theme:** Clam ttk theme
+
+#### Title Bar
+- Blue (#0078D4) background, 60px height
+- "🔄 Power Query Report Extractor" in 18pt bold white
+
+#### Tab 1: Setup
+Two-column layout:
+
+**Left Column (400px fixed):**
+1. Target Folder: entry + Browse + Scan buttons
+2. Processing Options:
+   - Wait time spinbox (5-60 seconds, default 10)
+   - Suffix pattern entry (default: `_Refreshed_{timestamp}`)
+   - "Skip Refresh" checkbox
+3. "🚀 Start Processing" button (full width, initially disabled)
+
+**Right Column:**
+- Client Selection with header labels: Client Name | ITC | Sales | Last Refresh Status
+- Buttons: ✓ Select All, ✗ Deselect All, ITC Only, Sales Only
+- Scrollable checkbox list per client with ITC/Sales individual toggles
+
+#### Tab 2: Processing
 - Progress label + progress bar
-- Processing log (light background, Consolas font, color-coded)
+- Log text widget (Consolas 9pt, light background)
+- Color tags: info=black, success=green, warning=yellow, error=red
 
-### Typical User Workflow
-1. Launch `python main.py`
-2. Setup tab: Browse to source folder, select ITC + Sales templates, select target folder
-3. Choose "Fresh Run" mode
-4. Click "Scan Files" → automatically switches to Validation tab
-5. Review client list, select desired clients (or "Select All")
-6. Optionally click "Dry Run" to preview
-7. Click "Start Processing" → switches to Processing tab
-8. Watch progress bar and log until completion
-9. Output folder opens automatically
-10. Launch `python launch_extractor.py`
-11. Extractor auto-loads target folder from cache
-12. Select clients and ITC/Sales checkboxes
-13. Configure wait time if needed
-14. Click "Start Processing"
-15. Wait for Power Query refresh + extraction
-16. Consolidated report opens automatically
+#### Status Bar
+- Gray (#e0e0e0) background, 25px height
 
 ---
 
@@ -639,218 +858,325 @@ This was added to handle the Windows path length limit problem. Some client name
 
 ### 1. Foundation
 
-**Environment Setup:**
-- Python 3.8+ with pip
-- `pip install openpyxl lxml pywin32` (on Windows)
+**Environment setup:**
+- Python 3.8+ (for better typing support)
+- `pip install openpyxl>=3.1.2 pywin32>=305` (on Windows)
 - Project structure: `core/`, `utils/`, `gui/`, `power_query_extractor/`
 
-**Build Order:**
-1. `utils/constants.py` — Define all patterns, mappings, config (no dependencies)
-2. `utils/helpers.py` — File operations, sanitization, path utilities
-3. `core/file_parser.py` — File scanning and pattern matching
-4. `core/file_organizer.py` — Folder creation and file copying
-5. `core/excel_handler.py` — Excel report creation
-6. GUI layer (can be built independently of core)
-7. `power_query_extractor/` — Separate sub-application
+**First file to create:** `utils/constants.py` — all patterns, mappings, and config in one place.
+**Second file:** `utils/helpers.py` — all utility functions.
+**Third file:** `core/file_parser.py` — the scanning/parsing engine.
 
-### 2. Feature Priority
+### 2. Core Logic Build Order
 
-| Priority | Feature | Reason |
-|----------|---------|--------|
-| **Essential** | F1: File Scanning | Nothing works without this |
-| **Essential** | F3: File Organization | Core value proposition |
-| **Essential** | F4: Report Generation | Clients need the Excel reports |
-| **Essential** | F14: State Codes | Required for folder naming |
-| **High** | F2: Completeness Analysis | Users need to know what's missing |
-| **High** | F5: Summary Report | Audit trail for the consultant |
-| **High** | F10: Session Persistence | Saves time on repeated use |
-| **Medium** | F7: PQ Refresh | High value but Windows-only and fragile |
-| **Medium** | F8/F9: Extraction | Depends on F7 working |
-| **Medium** | F13: Dry Run | Safety feature |
-| **Low** | F11: Dark Mode | Cosmetic |
-| **Low** | F12: Client Export | Niche use case |
-| **Low** | F6: Org Report | Supplementary documentation |
-| **Low** | F15: Configurable Names | Power user feature |
+```
+1. utils/constants.py          (no dependencies)
+2. utils/helpers.py            (depends on constants)
+3. core/file_parser.py         (depends on constants, helpers)
+4. core/file_organizer.py      (depends on constants, helpers)
+5. core/excel_handler.py       (depends on constants, helpers)
+6. gui/ modules                (depends on all core modules)
+7. power_query_extractor/      (depends on openpyxl, win32com)
+```
 
-### 3. Known Improvements for Rebuild
+### 3. Feature Priority
 
-1. **Use QThread (PyQt5) instead of threading.Thread** — Better integration with GUI event loop, no need for `root.after()` hacks
-2. **Use Excel COM `RefreshAll()` with proper wait** instead of SendKeys — More reliable, less fragile
-3. **Add recursive folder scanning** — Real-world users may have files in subfolders
-4. **Add GSTIN validation** — Extract and validate the 15-digit GSTIN from filenames or file contents
-5. **Add progress persistence** — Save processing state so interrupted runs can truly resume
-6. **Separate the PQ Extractor into the main app** as a fourth tab (the PyQt5 branch attempted this)
-7. **Replace flat cache file with structured config** — Use proper config directory (`~/.gst_organizer/`) with separate files for settings, history, and state
-8. **Add file size check before processing** — Verify sufficient disk space for all planned copies
-9. **Handle client names with hyphens** — Current regex breaks on "ABC-DEF Corp" style names
+| Priority | Feature | Complexity | Notes |
+|----------|---------|------------|-------|
+| P0 | File scanning & pattern matching (F1) | MODERATE | Core value proposition |
+| P0 | Folder structure creation (F2) | SIMPLE | Straightforward Path operations |
+| P0 | File organization/copy (F3) | SIMPLE | shutil.copy2 with verification |
+| P0 | ITC/Sales report generation (F4) | COMPLEX | Win32COM is tricky |
+| P1 | Summary report (F5) | MODERATE | openpyxl formatting |
+| P1 | Client selection UI (F7) | MODERATE | Treeview with keyboard support |
+| P1 | Full processing pipeline (F8) | COMPLEX | Threading, progress, error handling |
+| P2 | Settings persistence (F10) | SIMPLE | JSON read/write |
+| P2 | Dark mode (F9) | MODERATE | Recursive widget theming |
+| P2 | Dry run preview (F6) | SIMPLE | Log-only version of F8 |
+| P3 | PQ Refresh & Extract (F11) | COMPLEX | COM automation with SendKeys |
+| P3 | Consolidation report (F12) | MODERATE | Multi-sheet openpyxl |
+| P3 | Export client list (F13) | SIMPLE | Text file write |
 
-### 4. Estimated Complexity
+### 4. Known Improvements for Rebuild
 
-| Feature | Complexity | Notes |
-|---------|-----------|-------|
-| F1: File Scanning | MODERATE | Regex patterns are the tricky part |
-| F2: Completeness | SIMPLE | Straightforward set comparison |
-| F3: File Organization | MODERATE | Many edge cases in folder creation |
-| F4: Report Generation | COMPLEX | Excel COM is always complex |
-| F5: Summary Report | MODERATE | openpyxl styling takes time |
-| F7: PQ Refresh | COMPLEX | Most fragile part of the system |
-| F8/F9: Extraction | MODERATE | Depends on stable COM foundation |
-| F10: Cache | SIMPLE | JSON read/write |
-| F11: Dark Mode | MODERATE | Recursive widget walking is tricky in Tkinter |
-| F14: State Codes | SIMPLE | Just a lookup dictionary |
-| F15: Configurable Names | SIMPLE | UI wiring + string truncation |
-| GUI (complete) | COMPLEX | Many widgets, events, threading |
+> Following Section 8 constraints — not recommending replacing Tkinter (D1 justifies it) or Win32COM (D2 requires it).
 
-### 5. Suggested Claude Code Skills
+1. **Fix cache path mismatch** (Section 7, item 1): Centralize cache path in a shared constant. Both apps should use `Path.home() / '.gst_organizer_cache.json'`.
+
+2. **Fix lambda capture bug** (Section 7, item 2): In all `root.after(0, lambda: ...)` calls inside loops, use default argument binding: `lambda ci=client_info: self.app.log_message(ci['client'])`.
+
+3. **Guard PQ Extractor imports** (Section 7, item 3): Add try/except around win32 imports in `report_processor.py`, matching the pattern in `excel_handler.py:20-28`.
+
+4. **Fix os.startfile calls** (Section 7, item 4): Add platform check to `client_handler.py:251`.
+
+5. **Complete requirements.txt** (Section 7, item 5): Add `pywin32>=305; sys_platform == 'win32'`.
+
+6. **Case-insensitive abbreviations** (Section 7, item 7): Use `re.sub(r'\bPrivate\b', 'Pvt', ..., flags=re.IGNORECASE)` in `sanitize_filename()`.
+
+7. **Validate templates before processing** (Section 7, item 14): Check for "Links" sheet in templates during `validate_processing_inputs()`.
+
+8. **Remove dead code**: Delete `calculate_file_hash()`, `_write_section()`, `_create_details_sheet()`, unused constants (`TEMPLATE_EXTENSIONS`, `EXCEL_SIGNATURES`, `MAX_FILE_SIZE_MB`), stale `# ADD THIS` comments.
+
+9. **Clean up excessive DEBUG logging**: `excel_handler.py` and `processing_handler.py` contain many `[DEBUG]` log statements that were clearly added during troubleshooting and never removed. These clutter the log file.
+
+10. **Add template validation at scan time**: Before switching to the Validation tab, verify that selected templates are valid and contain a "Links" sheet. This catches issues early.
+
+### 5. Estimated Complexity
+
+| Component | Complexity | Reason |
+|-----------|------------|--------|
+| Constants/Config | SIMPLE | Pure data definitions |
+| Helpers/Utilities | SIMPLE | Standard Python operations |
+| File Parser | MODERATE | Regex patterns, data structure design |
+| File Organizer | MODERATE | Path logic, processing modes |
+| Excel Handler (openpyxl) | MODERATE | Cell formatting, multiple sheets |
+| Excel Handler (COM) | COMPLEX | Win32COM is brittle, error handling critical |
+| GUI Layout (Tkinter) | MODERATE | Many widgets, scrollable areas |
+| Threading/Progress | COMPLEX | Thread safety, progress reporting |
+| Dark Mode | MODERATE | Recursive widget traversal |
+| PQ Refresh | COMPLEX | SendKeys, window enumeration, timing |
+| Data Consolidation | MODERATE | Multi-sheet report from config |
+| Cache/Settings | SIMPLE | JSON serialize/deserialize |
+
+### 6. Suggested Claude Code Skills
 
 | Feature Area | Skill Description |
-|-------------|-------------------|
-| Excel COM Automation | Skill for safely opening/editing/saving Excel files via win32com with retry logic, path handling, and cleanup |
-| Tkinter Tabbed App | Skill for creating multi-tab Tkinter apps with handler delegation, dark mode, and thread-safe updates |
-| File Pattern Organizer | Skill for scanning folders, matching regex patterns, and creating organized folder structures |
-| Config-Driven Data Extraction | Skill for reading specific cells from Excel files based on a declarative configuration |
+|--------------|-------------------|
+| Excel COM Automation | Skill for opening, modifying, and saving Excel files via win32com while preserving Power Query, with proper COM initialization/cleanup pattern |
+| Tkinter Threaded Processing | Skill for running long operations in background thread with thread-safe UI updates via root.after |
+| Regex-based File Classification | Skill for scanning directories and classifying files by regex patterns into grouped categories |
+| Excel Report Generation | Skill for creating formatted multi-sheet Excel reports with headers, borders, auto-fit columns using openpyxl |
 
 ---
 
 ## SECTION 12: CHANGELOG ARCHAEOLOGY (FROM GIT HISTORY)
 
+### Branch Map
+
+```
+main (production):    edac6a3 → 6237597 → 9c56a1c → d674386 → 5ea77c2 → 1cb878b → 01862a0
+                                    ↑           ↓
+                      (GitHub)  cbfa4a5 ────────┘
+
+                      → 1c48722 → 4c42758 → bd176bf → 47a1492 → fc279af (HEAD)
+
+copilot-worktree (unmerged):  47a1492 → c258047 → a62d3cc → c21f788
+```
+
 ### 12A. Complete Development Timeline
 
-#### Phase 1: Initial Creation (2025-08-31)
+#### Phase 1: Initial Release (edac6a3 — 2025-10-29)
 
-**Commit `edac6a3` — "Initial commit" — 2025-08-31**
-- **What changed:** Massive initial commit with 110 files, 12,916 lines of code. The entire application was committed at once — core logic, GUI, Power Query Extractor, utilities, README, and even compiled __pycache__ files and a 5,689-line log file.
-- **Why:** This was not an incremental development — the application was built in AI-assisted conversations and then committed as a complete working unit. The presence of both Python 3.12 and 3.13 __pycache__ files suggests it was tested on two Python versions.
-- **What it reveals:** The app was substantially complete from day one. The log file (5,689 lines) shows it had been run extensively before the initial commit, processing real client data. The README was already comprehensive, suggesting the AI assistant generated it as part of the development process.
+**Commit edac6a3** — "Initial commit"
+- **Branch:** main
+- **What changed:** Entire codebase added — 110 files, 12,916 insertions. Includes all core modules, GUI, utilities, power_query_extractor, and accidentally commits `__pycache__/` directories and `gst_organizer.log` (5,689 lines of debug output).
+- **Why:** First commit of a working application. The included log file reveals extensive prior development/testing outside version control.
+- **What it reveals:** The project was developed substantially before being put into git. The log file shows real-world processing of GST files with actual client names and file operations. The codebase arrived in a relatively mature state — modular architecture, comprehensive error handling, configurable processing modes — suggesting significant AI-assisted iteration before the first commit.
 
-**Commit `cbfa4a5` — "Delete gst_organizer.log" — 2025-08-31 (3 minutes later)**
-- **What changed:** Removed the accidentally committed 5,689-line log file.
-- **Why:** The log contained real processing data that shouldn't be in version control.
-- **What it reveals:** The developer was new to git — committing everything and then immediately removing sensitive files.
+#### Phase 2: Cleanup (cbfa4a5, 6237597, 9c56a1c — 2025-10-29)
 
-#### Phase 2: Critical Bug Fixes (2025-10-29, ~2 months later)
+**Commit cbfa4a5** — "Delete gst_organizer.log"
+- **Branch:** main (remote)
+- **What changed:** Removed 5,689-line log file accidentally committed.
+- **Why:** The log contained debug output and potentially sensitive client information.
 
-**Commit `6237597` — "Fix critical import and threading bugs" — 2025-10-29**
-- **What changed:** 4 files, 59 insertions, 45 deletions. Fixed circular import in helpers.py (STATE_CODE_MAPPING), fixed scanned_files attribute access in file_handler.py, fixed thread safety in processing_handler.py GUI updates, fixed indentation bug in client name validation, corrected reference to non-existent `app.py` in error messages, improved progress callback handling.
-- **Why:** The app was crashing on launch and during processing. These are the bugs you find when you actually try to use the software — circular imports, threading race conditions, incorrect attribute names.
-- **What it reveals:** The initial AI-generated code had structural bugs that only appeared at runtime. The 2-month gap suggests the developer tried to use the tool, hit these bugs, and came back for fixes.
+**Commit 6237597** — "Fix critical import and threading bugs in GST Organizer"
+- **Branch:** main (local)
+- **What changed:** 4 files, 59 insertions, 45 deletions:
+  1. `core/file_parser.py`: Added `self.progress_callback = None` initialization and `_update_progress()` safe wrapper
+  2. `gui/handlers/file_handler.py`: Fixed `self.app.file_parser.scanned_files` to `self.app.scanned_files` (the scanned data is stored on the app instance, not the parser)
+  3. `gui/handlers/processing_handler.py`: Wrapped ALL UI update calls in `self.app.root.after(0, lambda: ...)` for thread safety; improved long client name validation with configurable max_len
+  4. `utils/helpers.py`: Fixed `from utils.constants import STATE_CODE_MAPPING` to `from .constants import STATE_CODE_MAPPING` (relative import fix)
+- **Why:** These are bugs discovered during first real-world use:
+  - The circular import error (helpers → utils.constants) would crash on startup
+  - The thread safety issue would cause random Tkinter crashes during processing
+  - The scanned_files attribute error would crash on scan completion
+- **What it reveals:** The initial commit was from a development environment where absolute imports worked (maybe running from project root). The circular import and thread safety issues are classic "it worked in testing but not in production" bugs.
 
-**Commit `9c56a1c` — "Merge branch 'main'" — 2025-10-29**
-- **What changed:** Merge commit reconciling local bug fixes with remote (which had the log file deletion).
-- **Why:** Standard git workflow — local and remote had diverged.
+**Commit 9c56a1c** — "Merge branch 'main'"
+- **Branch:** main
+- **What changed:** Merge commit combining local fixes (6237597) with remote log deletion (cbfa4a5).
+- **Why:** The developer had both local changes and a remote change (GitHub UI deletion of the log file), requiring a merge.
 
-**Commit `d674386` — "Update README.md" — 2025-10-29**
-- **What changed:** 239 insertions, 135 deletions to README.
-- **Why:** README was updated to match the actual state of the application after bug fixes.
-- **What it reveals:** The README was being kept as living documentation.
+#### Phase 3: Documentation and Hygiene (d674386, 5ea77c2, 1cb878b, 01862a0 — 2025-10-29)
 
-**Commit `5ea77c2` — "Remove shebang line from main.py" — 2025-10-29**
-- **What changed:** Removed `#!/usr/bin/env python3` from main.py.
-- **Why:** Unnecessary on Windows (the target platform). Cleanup.
+**Commit d674386** — "Update README.md for clarity and formatting improvements"
+- **Branch:** main
+- **What changed:** Major README overhaul — added Excel Corruption Prevention section, table-formatted file patterns, PQ Extractor documentation, cell extraction config example, troubleshooting table. 239 insertions, 135 deletions.
+- **Why:** Documentation maturation after initial deployment. The "Excel Corruption Prevention" section suggests corruption was a real problem in pre-git development.
 
-**Commit `1cb878b` — "Add .gitignore" — 2025-10-29**
-- **What changed:** 79-line .gitignore covering Python caches, IDE files, logs, temp files, Excel temp files, output directories, user data, and Power Query cache files.
-- **Why:** Proper project hygiene after the initial log file mistake.
-- **What it reveals:** The developer learned from the log file incident. The .gitignore is comprehensive and domain-specific (e.g., excludes `~$*.xlsx` Excel temp files, `temp_gst_*` prefix files).
+**Commit 5ea77c2** — "Remove shebang line from main.py"
+- **Branch:** main
+- **What changed:** Removed `# !/usr/bin/env python3` from line 1.
+- **Why:** The shebang is unnecessary on Windows and had a space (`# !` instead of `#!`), making it invalid anyway.
 
-**Commit `01862a0` — "Remove __pycache__ directories" — 2025-10-29**
-- **What changed:** Removed 70 compiled .pyc files that were accidentally tracked.
-- **Why:** These should never have been in git. Now excluded by .gitignore.
+**Commit 1cb878b** — "Add .gitignore file"
+- **Branch:** main
+- **What changed:** Added 79-line .gitignore covering Python bytecode, virtual environments, IDE files, logs, Excel temps, output directories, Windows files, Power Query cache.
+- **Why:** Prevents future accidental commits of log files, __pycache__, and output data.
 
-**Commit `1c48722` — "Remove redundant text color handling" — 2025-10-29**
-- **What changed:** Removed 6 lines from client_handler.py.
-- **Why:** Text color was being set redundantly in the client tree display.
-- **What it reveals:** Fine-tuning of the UI after the major bug fixes.
+**Commit 01862a0** — "Remove __pycache__ directories from Git tracking"
+- **Branch:** main
+- **What changed:** Removed 70 .pyc binary files that were committed in the initial commit.
+- **Why:** Cleanup now that .gitignore prevents re-addition.
 
-**Commit `4c42758` — "Add mouse wheel scrolling" — 2025-10-29**
-- **What changed:** Added 30 lines to extractor_window.py for mouse wheel scrolling on both the main client list and the processing log.
-- **Why:** The scrollable areas didn't respond to mouse wheel — a usability issue discovered during real use.
-- **What it reveals:** The PQ Extractor was being actively used and polished.
+#### Phase 4: Production Bug Fixes (1c48722 — 2025-10-29)
 
-#### Phase 3: Feature Enhancement (2025-10-30)
+**Commit 1c48722** — "Remove redundant text color handling in client tree display"
+- **Branch:** main
+- **What changed:** Removed 6 lines from `client_handler.py` that redundantly re-configured tree tag colors and force-iterated columns.
+- **Why:** The dark mode manager already handles tree tag coloring. This redundant code was likely causing visual glitches (colors not matching dark mode state).
 
-**Commit `bd176bf` — "Enhance report processing UI" — 2025-10-30**
-- **What changed:** 412 insertions, 162 deletions across 3 files. Major redesign of the PQ Extractor window: added two-column layout, configurable wait time (5-60 seconds spinbox), file suffix pattern configuration, skip refresh checkbox, per-client ITC/Sales report checkboxes (instead of all-or-nothing), refresh status display per client.
-- **Why:** The original PQ Extractor was inflexible — fixed wait time, no way to skip refresh, no way to process only ITC or only Sales. Real-world use revealed these needs.
-- **What it reveals:** The consultant needed more control over the PQ refresh process. The wait time becoming configurable (5-60 seconds) shows different reports took different amounts of time to refresh. The ITC/Sales selection shows some clients only needed one type of report.
+#### Phase 5: PQ Extractor Enhancement (4c42758, bd176bf, 47a1492 — 2025-10-30)
 
-**Commit `47a1492` — "Add new ITC report mappings" — 2025-10-30 (HEAD of main)**
-- **What changed:** Added 126 lines of new extraction configurations and removed the `cell_mappings copy.py` backup file. New extraction sheets: Reco Diff (cells C37/D37/E37 from 'Reco' sheet), Table 6J Match (K29 from 'T6 of R9'), Table 8D Limits (G6 from 'T8 of R9'), IMS Reco (AA1/AD1/AG1 from 'IMS_Reco'), Extra In Purchase (O1/P1/Q1 from 'ExtraInPurchase'), Extra In GSTR2B (S1/T1/U1 from 'ExtraInGSTR2B').
-- **Why:** The consultant needed to extract more data points from the ITC reports. These are specific GST reconciliation values that need to be consolidated across all clients.
-- **What it reveals:** The extraction configuration is growing organically as the consultant discovers more data points they need. The cell references (AA1, AD1, AG1) suggest these are in wide, complex Excel sheets with many columns. The "T6 of R9" and "T8 of R9" sheet names refer to specific tables in the GSTR-9 annual return form.
+**Commit 4c42758** — "Add mouse wheel scrolling support for main and log text areas"
+- **Branch:** main
+- **What changed:** Added `_on_mousewheel` handler for canvas (with Enter/Leave focus binding) and `_on_log_mousewheel` for log text in `extractor_window.py`.
+- **Why:** Users couldn't scroll the client list or log with the mouse wheel. Focus-based binding prevents scroll conflicts when multiple scrollable areas exist.
 
-#### Phase 4: PyQt5 Migration Attempt (2026-02-07, NOT MERGED)
+**Commit bd176bf** — "Enhance report processing UI with configurable wait time and file suffix options"
+- **Branch:** main
+- **What changed:** 3 files, 412 insertions, 162 deletions:
+  1. `.claude/settings.local.json`: New file (Claude Code tooling)
+  2. `report_processor.py`: Added configurable `wait_time` and `suffix_pattern`; made `process_client()` selective (process_itc/process_sales flags)
+  3. `extractor_window.py`: Major UI restructuring — two-column layout, wait time spinbox (5-60s), suffix pattern entry, skip refresh checkbox, ITC/Sales individual selection per client, ITC Only/Sales Only buttons, refresh status display
+- **Why:** Users needed to:
+  - Adjust Power Query wait time (some reports take longer to refresh)
+  - Customize the refreshed file suffix
+  - Skip refresh when re-extracting from already-refreshed files
+  - Process only ITC or only Sales reports for specific clients
+- **What it reveals:** This is a significant feature enhancement driven by real-world usage. The default 10-second wait was probably too short for some reports, and re-running the extractor after fixing one client shouldn't require re-refreshing all.
 
-> **Important:** The following 3 commits exist on a branch called `copilot-worktree-2026-03-04T11-52-56` and have NOT been merged to main. They represent an attempted but incomplete migration.
+**Commit 47a1492** — "Add new ITC report mappings"
+- **Branch:** main
+- **What changed:** 2 files, 126 insertions, 63 deletions:
+  - Deleted `cell_mappings copy.py` (duplicate file)
+  - Added 6 new extraction configs: Reco Diff, Table 6J Match, Table 8D Limits, IMS Reco, Extra In Purchase, Extra In GSTR2B
+- **Why:** The consultant needed to extract more data from ITC reports. Each new config maps specific cells from specific sheets (e.g., "Reco" sheet cell C37 → "IGST Diff").
+- **What it reveals:** The extraction configuration grew organically as the consultant discovered which values they needed. The deletion of the "copy" file suggests the file was duplicated during development for backup.
 
-**Commit `c258047` — "Refactor v3.0 -> v4.0: PyQt5 migration" — 2026-02-07**
-- **What changed:** 3,070 insertions, 541 deletions across 33 files. Complete architectural overhaul: added models/ layer (dataclasses for state), PyQt5 views replacing Tkinter tabs, QThread-based controllers, QSS stylesheet theming, merged PQ Extractor into main app as Tab 4, run history tracking, and significant code cleanup (removed 50 debug lines, fixed 26 bare except clauses, broke up 344-line function into 7 methods).
-- **Why:** The Tkinter GUI had accumulated technical debt (recursive widget walking for dark mode, thread-unsafe GUI updates, god-object main window). PyQt5 offers better threading, styling, and widget capabilities.
-- **What it reveals:** This was a major investment — 20 new files, complete re-architecture. Co-authored with Claude Opus 4.6, suggesting another AI-assisted development session.
+#### Phase 6: Project Audit (fc279af — 2026-03-04)
 
-**Commit `a62d3cc` — "Remove old Tkinter GUI files" — 2026-02-07**
-- **What changed:** Deleted 17 Tkinter-based files (3,298 lines removed).
-- **Why:** Cleanup after PyQt5 migration — old files no longer needed.
+**Commit fc279af** — "Project Audit"
+- **Branch:** main
+- **What changed:** Added `PROJECT_AUDIT_ANNUALSTATEMENT.md` — 856-line comprehensive audit document.
+- **Why:** The project owner (a non-coder) needed documentation of the codebase for maintenance and future development.
 
-**Commit `c21f788` — "Fix gui/__init__.py import" — 2026-02-07**
-- **What changed:** Fixed the gui/__init__.py to import from PyQt5 main window instead of deleted Tkinter module.
-- **Why:** The previous commit deleted main_window.py but didn't update the import.
-- **What it reveals:** The migration was done hastily — the import fix was needed immediately after the deletion.
+#### Unmerged Branch: PyQt5 Migration (c258047, a62d3cc, c21f788 — 2026-03-04)
 
-> **Current Status:** These commits are on a worktree branch, not main. The main branch remains at the Tkinter v3.0 code. The PyQt5 migration may have been abandoned, deferred, or is awaiting testing.
+**Commit c258047** — "Refactor GST File Organizer v3.0 -> v4.0: PyQt5 migration, unified app, enhanced caching"
+- **Branch:** copilot-worktree-2026-03-04T11-52-56 (NOT on main)
+- **What changed:** 33 files, 3,070 insertions, 541 deletions. Massive refactoring:
+  - New `models/` directory (app_state.py, cache_manager.py, run_history.py, signals.py)
+  - New `gui/pyqt_main_window.py`
+  - New `gui/views/` (setup_view.py, validation_view.py, processing_view.py, extraction_view.py)
+  - New `gui/controllers/` (scan_controller.py, processing_controller.py, extraction_controller.py)
+  - New `gui/theme/` (theme_manager.py)
+  - New `gui/widgets/collapsible_group.py`
+  - Modified core files (cleanup of debug logging, bare excepts)
+  - Updated main.py and launch_extractor.py for PyQt5
+  - Added PyQt5 to requirements.txt
+- **Why:** Attempted modernization from Tkinter to PyQt5 for better widget quality, layout system, and signal/slot architecture.
+
+**Commit a62d3cc** — "Remove old Tkinter GUI files replaced by PyQt5 in v4.0"
+- **Branch:** copilot-worktree (NOT on main)
+- **What changed:** Deleted 17 Tkinter GUI files (main_window.py, all handlers, tabs, utils, widgets, extractor_window.py).
+- **Why:** Cleanup after PyQt5 replacement.
+
+**Commit c21f788** — "Fix gui/__init__.py to import PyQt5 main window instead of deleted Tkinter module"
+- **Branch:** copilot-worktree (NOT on main)
+- **What changed:** Updated `gui/__init__.py` to import `GSTOrganizerWindow` from `.pyqt_main_window` instead of `GSTOrganizerApp` from `.main_window`.
+- **Why:** The old import was broken after Tkinter files were deleted.
+
+> **Important:** This branch was NEVER merged to main. The current production code on `main` remains Tkinter-based. The PyQt5 code exists only on the unmerged branch.
 
 ### 12B. File Evolution Map
 
 | File | Created | Last Modified | Evolution |
 |------|---------|---------------|-----------|
-| main.py | edac6a3 (initial) | 5ea77c2 (shebang removal) | Minimal changes — stable entry point |
-| core/file_parser.py | edac6a3 | 6237597 (bug fixes) | Progress callback fix, import fix |
-| core/file_organizer.py | edac6a3 | Never changed on main | Stable from day one |
-| core/excel_handler.py | edac6a3 | Never changed on main | Stable from day one |
-| utils/helpers.py | edac6a3 | 6237597 (import fix) | One-line circular import fix |
-| utils/constants.py | edac6a3 | Never changed | Stable from day one |
-| gui/handlers/processing_handler.py | edac6a3 | 6237597 (thread safety) | Major thread-safety fixes |
-| gui/handlers/file_handler.py | edac6a3 | 6237597 (attribute fix) | One-line fix |
-| gui/handlers/client_handler.py | edac6a3 | 1c48722 (color fix) | Minor UI cleanup |
-| PQ extractor_window.py | edac6a3 | bd176bf (major UI redesign) | Most evolved file — 3 significant changes |
-| PQ report_processor.py | edac6a3 | bd176bf (configurable) | Wait time and suffix made configurable |
-| PQ cell_mappings.py | edac6a3 | 47a1492 (6 new sheets) | Actively growing configuration |
+| `main.py` | edac6a3 | 5ea77c2 | Shebang removed. Otherwise stable. |
+| `launch_extractor.py` | edac6a3 | — | Never modified after initial commit. |
+| `requirements.txt` | edac6a3 | — | Never modified on main. (Modified on unmerged branch to add PyQt5.) |
+| `core/file_parser.py` | edac6a3 | 6237597 | Added progress callback safety wrapper. |
+| `core/file_organizer.py` | edac6a3 | — | Never modified after initial commit. |
+| `core/excel_handler.py` | edac6a3 | — | Never modified after initial commit. |
+| `utils/constants.py` | edac6a3 | — | Never modified after initial commit. |
+| `utils/helpers.py` | edac6a3 | 6237597 | Fixed relative import for STATE_CODE_MAPPING. |
+| `gui/main_window.py` | edac6a3 | — | Never modified on main. |
+| `gui/handlers/file_handler.py` | edac6a3 | 6237597 | Fixed scanned_files attribute access. |
+| `gui/handlers/client_handler.py` | edac6a3 | 1c48722 | Removed redundant dark mode code. |
+| `gui/handlers/processing_handler.py` | edac6a3 | 6237597 | Added thread-safe UI updates, configurable max length. |
+| `gui/tabs/*.py` | edac6a3 | — | Never modified. |
+| `gui/utils/*.py` | edac6a3 | — | Never modified. |
+| `gui/widgets/*.py` | edac6a3 | — | Never modified. |
+| `pq_extractor/gui/extractor_window.py` | edac6a3 | bd176bf | Major UI restructuring for ITC/Sales selection. |
+| `pq_extractor/core/report_processor.py` | edac6a3 | bd176bf | Added configurable wait time, suffix, selective processing. |
+| `pq_extractor/config/cell_mappings.py` | edac6a3 | 47a1492 | Added 6 new ITC extraction configs. |
+| `pq_extractor/core/data_consolidator.py` | edac6a3 | — | Never modified. |
 
 ### 12C. Logic and Rule Evolution
 
-- **State code mapping:** Added in 6237597 to fix circular import — the mapping existed from the start but the import path was wrong, causing crashes
-- **Cell extraction configs:** Started with 3 sheets (GSTR-3B Diff, GSTR-1 Diff, Turnover) and grew to 9 sheets by 47a1492. Rules were added incrementally based on real-world needs.
-- **Processing handler:** Thread safety was significantly improved in 6237597, suggesting real-world crashes during processing
-- **No rules were removed or modified** — all changes were additive, suggesting the business rules were correct from the start
+| Rule | First Appeared | Changed? | Notes |
+|------|---------------|----------|-------|
+| 6 file patterns (regex) | edac6a3 | No | Stable since creation |
+| State code mapping | edac6a3 | No | Complete from initial commit |
+| GSTR-3B unlimited duplicates | edac6a3 | No | Always allowed |
+| Client name max length (35) | edac6a3 | 6237597 | Made configurable via GUI |
+| Thread-safe UI updates | 6237597 | No | Added to fix crash bugs |
+| ITC/Sales selective processing | bd176bf | No | Added for PQ Extractor |
+| Configurable PQ wait time | bd176bf | No | Added based on user need |
+| Skip refresh option | bd176bf | No | Added for re-extraction |
+| ITC cell mappings (GSTR-3B Diff) | edac6a3 | 47a1492 | 6 new configs added |
+| Sales cell mappings (GSTR-1 Diff) | edac6a3 | No | Stable |
 
 ### 12D. Edge Cases Discovered in Production
 
-| Commit | Bug | Fix | Similar Unhandled Cases? |
-|--------|-----|-----|------------------------|
-| 6237597 | Circular import: helpers.py importing from constants.py | Changed import to lazy import inside function | Other circular import risks exist if modules grow |
-| 6237597 | `scanned_files` accessed before scan completed | Fixed attribute reference | Other attributes could have similar timing issues |
-| 6237597 | GUI updates from processing thread causing crashes | Wrapped in `root.after(0, ...)` | Some updates may still not be thread-safe |
-| 6237597 | Indentation bug in client name validation | Fixed indentation | Suggests the code wasn't being linted |
-| 4c42758 | Mouse wheel not working in scrollable areas | Added explicit mousewheel bindings | Other scrollable areas might need similar treatment |
-| bd176bf | Fixed wait time being too short for some reports | Made configurable (5-60 seconds) | Very complex reports might need >60 seconds |
+| Commit | Bug | Fix | Unhandled Siblings |
+|--------|-----|-----|-------------------|
+| 6237597 | Circular import: `from utils.constants` fails when running as package | Changed to relative import `from .constants` | None — all other imports already use relative paths |
+| 6237597 | Thread crash: Tkinter widget access from background thread | Wrapped in `root.after(0, lambda: ...)` | Lambda capture bug introduced — log shows wrong values |
+| 6237597 | AttributeError: `file_parser.scanned_files` | Changed to `self.app.scanned_files` | None |
+| 1c48722 | Dark mode tree colors incorrect after toggle | Removed redundant color code conflicting with DarkModeManager | None |
+| 4c42758 | Mouse wheel not working in PQ Extractor lists | Added mousewheel event handlers with focus binding | Setup tab canvas in main app also binds `bind_all` which may conflict |
+| bd176bf | PQ refresh too short for complex reports | Made wait time configurable (5-60 seconds) | Extended wait at line 285 still hardcoded as `max(10, self.wait_time)` |
 
 ### 12E. Abandoned Approaches and Reversals
 
-1. **`cell_mappings copy.py`** — A backup copy of cell_mappings.py existed from the initial commit and was removed in 47a1492. This suggests the developer was manually backing up config files before making changes, a practice that became unnecessary once git was being used properly.
+1. **PyQt5 Migration (branch `copilot-worktree-2026-03-04T11-52-56`):** 3 commits adding 3,070 lines of PyQt5 code and deleting 3,298 lines of Tkinter code. Never merged to main. The branch represents a complete architectural overhaul that was abandoned. Reason likely: the migration was complex, and the existing Tkinter code works.
 
-2. **PyQt5 Migration** — A comprehensive migration to PyQt5 was attempted (c258047) but exists only on a worktree branch, not merged to main. This is the most significant abandoned approach. It included 20 new files and a complete architectural overhaul. The fact that it wasn't merged suggests either: (a) testing revealed issues, (b) the developer decided Tkinter was good enough, or (c) the migration is still in progress.
+2. **cell_mappings copy.py:** A duplicate of the cell mappings config file was committed in the initial commit and deleted in 47a1492. This suggests the developer made a backup copy of the config before editing it — a manual versioning approach before git was used.
 
-3. **`gui/app.py`** — The initial commit's main.py error messages referenced a `gui/app.py` file that never existed in the repository. Fixed in 6237597. This suggests the application was originally planned as a single-file GUI before being modularized.
+3. **Dead methods in data_consolidator.py:** `_write_section()` (line 250) and `_create_details_sheet()` (line 354) are remnants of an earlier report format. The `create_report()` method was rewritten to use `EXTRACTION_CONFIG` directly, making these methods dead. They should be removed.
+
+4. **EXCEL_SAFETY constants (constants.py:217-228):** Defined `max_retries`, `retry_delay`, `temp_prefix`, `backup_prefix`, `verification_size_min`, and `save_options`. Only `save_options` is referenced (by `excel_handler.py:54` which stores it but never uses it for actual save options). The rest are dead. These suggest an earlier design for more robust file operations that was simplified or never implemented.
 
 ### 12F. Dependency Evolution
 
-| Commit | Change | Reason |
-|--------|--------|--------|
-| edac6a3 | Initial requirements.txt: openpyxl>=3.1.2, lxml>=4.9.0, optional dev deps | Foundation dependencies |
-| c258047 (unmerged) | Added PyQt5>=5.15.0, structured sections | PyQt5 migration attempt |
+| Commit | Change | Why |
+|--------|--------|-----|
+| edac6a3 | requirements.txt created with openpyxl ≥3.1.2, lxml ≥4.9.0 | Initial setup |
+| — | pywin32 NOT added to requirements.txt | Oversight. Used extensively but never declared. |
+| c258047 (unmerged) | PyQt5 added to requirements.txt | For PyQt5 migration. Never reached main. |
 
-The dependencies have been remarkably stable. No library was ever replaced or removed on the main branch. pywin32 is used in the code but was never added to requirements.txt — this is a documentation gap.
+**Dependencies used but missing from requirements.txt:**
+- `pywin32` — Used via `import win32com.client`, `import pythoncom`, `import win32api`, `import win32con`, `import win32gui`. Critical for Power Query operations. Listed in README but not in requirements.txt.
 
 ---
 
-*End of audit. Generated by Claude Opus 4.6 on 2026-03-04.*
+## Self-Consistency Review Notes
+
+1. **Section 3 (F6) vs Section 7 (item 2):** Both correctly identify the lambda capture bug. Consistent.
+
+2. **Section 8 (D1, Tkinter justified) vs Section 11 (Reconstruction Blueprint):** Blueprint does NOT recommend replacing Tkinter, respecting D1. Consistent.
+
+3. **Section 8 (D2, Win32COM required) vs Section 11:** Blueprint does NOT recommend replacing Win32COM. Consistent.
+
+4. **Section 2 (dead code analysis) vs Section 12E (abandoned approaches):** Both identify `_write_section()` and `_create_details_sheet()` as dead. Consistent.
+
+5. **Section 10 (cache path) vs Section 7 (item 1):** Both identify the cache path mismatch. Consistent.
+
+6. **Section 12B ("never modified" claims) verified:** All "never modified" files checked against current code — no imports reference functions added in later commits. Verified consistent.
+
+7. [Corrected during self-review] Section 2 initially listed `extract_filename_without_extension()` as potentially dead. Verified it IS called from `excel_handler.py` lines 576, 588, 598, 614, 631, 646. Removed from dead code list.
+
+8. [Corrected during self-review] Section 2 initially listed `parsing_rate` as dead. Verified it IS displayed in `main_window.py:280`. Removed from dead code list.
