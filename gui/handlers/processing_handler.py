@@ -19,7 +19,22 @@ class ProcessingHandler:
     
     def __init__(self, app_instance):
         self.app = app_instance
-    
+
+    def _log_async(self, message, level='normal'):
+        """Schedule a log message on the UI thread.
+
+        The message is formatted by the caller and captured HERE via a default
+        argument, so loop variables (client_info, folders, result, ...) are read
+        at schedule time - not later when the callback runs, by which point the
+        loop may have moved on. Fixes wrong client names appearing in the log.
+        """
+        self.app.root.after(0, lambda m=message, lv=level: self.app.log_message(m, lv))
+
+    def _progress_async(self, progress, message):
+        """Schedule a progress update on the UI thread, capturing the values now
+        (same reason as _log_async)."""
+        self.app.root.after(0, lambda p=progress, m=message: self.app.update_progress(p, m))
+
     def dry_run(self):
         """Perform dry run"""
         if not self.app.file_handler.validate_processing_inputs():
@@ -33,23 +48,23 @@ class ProcessingHandler:
         # Switch to processing tab
         self.app.notebook.select(2)
         
-        self.app.root.after(0, lambda: self.app.log_message("🧪 ════════ DRY RUN PREVIEW ════════", 'info'))
-        self.app.root.after(0, lambda: self.app.log_message(f"🎯 Mode: {self.app.processing_mode.get()}", 'info'))
-        self.app.root.after(0, lambda: self.app.log_message(f"👥 Selected: {len(selected)} clients", 'info'))
+        self._log_async("🧪 ════════ DRY RUN PREVIEW ════════", 'info')
+        self._log_async(f"🎯 Mode: {self.app.processing_mode.get()}", 'info')
+        self._log_async(f"👥 Selected: {len(selected)} clients", 'info')
         
         for client_key in selected:
             client_info = self.app.client_data[client_key]
-            self.app.root.after(0, lambda: self.app.log_message(f"\n🏢 {client_info['client']} - {client_info['state']}", 'info'))
+            self._log_async(f"\n🏢 {client_info['client']} - {client_info['state']}", 'info')
             
             for file_type, files in client_info['files'].items():
                 for file_info in files:
-                    self.app.root.after(0, lambda: self.app.log_message(f"  📄 Would organize: {file_info['name']}", 'normal'))
+                    self._log_async(f"  📄 Would organize: {file_info['name']}", 'normal')
                     
-            self.app.root.after(0, lambda: self.app.log_message("  📊 Would create: ITC Report", 'success'))
-            self.app.root.after(0, lambda: self.app.log_message("  💰 Would create: Sales Report", 'success'))
+            self._log_async("  📊 Would create: ITC Report", 'success')
+            self._log_async("  💰 Would create: Sales Report", 'success')
             
-        self.app.root.after(0, lambda: self.app.log_message("\n🧪 ════════ DRY RUN COMPLETE ════════", 'success'))
-        self.app.root.after(0, lambda: self.app.log_message("💡 No files were actually moved or created", 'warning'))
+        self._log_async("\n🧪 ════════ DRY RUN COMPLETE ════════", 'success')
+        self._log_async("💡 No files were actually moved or created", 'warning')
     
     def start_processing(self):
         """Start processing selected clients"""
@@ -101,7 +116,7 @@ class ProcessingHandler:
         self.app.stop_requested = False
         self.app.is_processing = True
         
-        self.app.root.after(0, lambda: self.app.log_message("🚀 ════════ PROCESSING STARTED ════════", 'success'))
+        self._log_async("🚀 ════════ PROCESSING STARTED ════════", 'success')
         
         # Start processing thread
         self.app.processing_thread = threading.Thread(
@@ -175,10 +190,10 @@ class ProcessingHandler:
                 # Update progress with client counter and time remaining
                 progress = (idx / total_clients) * 100
                 status_msg = f"Client {idx + 1} of {total_clients}: {client_info['client']} | ETA: {time_remaining}"
-                self.app.root.after(0, lambda: self.app.update_progress(progress, status_msg))
+                self._progress_async(progress, status_msg)
                 
                 try:
-                    self.app.root.after(0, lambda: self.app.log_message(f"\n🏢 Processing {client_info['client']} - {client_info['state']}", 'info'))
+                    self._log_async(f"\n🏢 Processing {client_info['client']} - {client_info['state']}", 'info')
 
                     # Track report creation success for this client
                     itc_success = False
@@ -186,24 +201,24 @@ class ProcessingHandler:
                     
                     # Create folders
                     folder_msg = f"Client {idx + 1}/{total_clients}: Creating folders | ETA: {time_remaining}"
-                    self.app.root.after(0, lambda: self.app.update_progress(progress, folder_msg))
+                    self._progress_async(progress, folder_msg)
                     folders = self.app.file_organizer.create_client_structure(client_info)
                     
                     if level1_folder is None:
                         level1_folder = folders['level1']
                     
-                    self.app.root.after(0, lambda: self.app.log_message("  ✓ Created folder structure", 'success'))
+                    self._log_async("  ✓ Created folder structure", 'success')
                     
                     # Log folder structure
-                    self.app.root.after(0, lambda: self.app.log_message(f"    Level 1: {folders['level1'].name}", 'normal'))
-                    self.app.root.after(0, lambda: self.app.log_message(f"    Level 2: {folders['level2'].name}", 'normal'))
-                    self.app.root.after(0, lambda: self.app.log_message(f"    Level 3: {folders['version'].name}", 'normal'))
+                    self._log_async(f"    Level 1: {folders['level1'].name}", 'normal')
+                    self._log_async(f"    Level 2: {folders['level2'].name}", 'normal')
+                    self._log_async(f"    Level 3: {folders['version'].name}", 'normal')
                     
                     # Organize files
                     def file_progress(current, total, message):
                         sub_progress = progress + (current / total) * (50 / total_clients)
                         file_msg = f"Client {idx + 1}/{total_clients}: {message} | ETA: {time_remaining}"
-                        self.app.root.after(0, lambda: self.app.update_progress(sub_progress, file_msg))
+                        self._progress_async(sub_progress, file_msg)
                     
                     file_results = self.app.file_organizer.organize_files(
                         client_info, folders, file_progress
@@ -213,17 +228,17 @@ class ProcessingHandler:
                     total_files += successful_files
                     summary_data['total_files'] += successful_files
                     
-                    self.app.root.after(0, lambda: self.app.log_message(f"  ✓ Organized {successful_files} files", 'success'))
+                    self._log_async(f"  ✓ Organized {successful_files} files", 'success')
                     
                     # Log file organization details
                     for result in file_results:
                         if result['status'] == 'Success':
-                            self.app.root.after(0, lambda: self.app.log_message(f"    📁 {result['filename']} → {result['file_type']} folder", 'normal'))
+                            self._log_async(f"    📁 {result['filename']} → {result['file_type']} folder", 'normal')
                     
                     # Create reports
                     report_progress = progress + 50 / total_clients
                     report_msg = f"Client {idx + 1}/{total_clients}: Creating Excel reports | ETA: {time_remaining}"
-                    self.app.root.after(0, lambda: self.app.update_progress(report_progress, report_msg))
+                    self._progress_async(report_progress, report_msg)
                     
                     # Prepare safe filenames
                     safe_client = sanitize_filename(client_info['client'])
@@ -234,9 +249,9 @@ class ProcessingHandler:
                     itc_name = f"ITC_Report_{safe_client}_{safe_state}_{safe_timestamp}"
                     itc_output = folders['version'] / f"{itc_name}.xlsx"
                     
-                    self.app.root.after(0, lambda: self.app.log_message("  📊 Creating ITC report...", 'info'))
-                    self.app.root.after(0, lambda: self.app.log_message(f"    Template: {Path(self.app.itc_template.get()).name}", 'normal'))
-                    self.app.root.after(0, lambda: self.app.log_message(f"    Output: {itc_output.name}", 'normal'))
+                    self._log_async("  📊 Creating ITC report...", 'info')
+                    self._log_async(f"    Template: {Path(self.app.itc_template.get()).name}", 'normal')
+                    self._log_async(f"    Output: {itc_output.name}", 'normal')
                     
                     try:
                         itc_data = self.app.excel_handler.prepare_template_data(
