@@ -109,10 +109,11 @@ class ExcelHandler:
         logger.info(f"[DEBUG] Template: {template_path}")
         logger.info(f"[DEBUG] Output: {output_path}")
         logger.info(f"[DEBUG] USE_WIN32COM: {USE_WIN32COM}")
-        
+
         excel = None
         wb = None
-        
+        local_temp = None
+
         try:
             # Initialize COM
             pythoncom.CoInitialize()
@@ -130,14 +131,31 @@ class ExcelHandler:
             excel.DisplayAlerts = False
             excel.ScreenUpdating = False
             
-            # First, copy template to output location
-            logger.info(f"Copying template to output location...")
-            shutil.copy2(str(template_path), str(output_path))
+            # Stage the report on LOCAL disk instead of opening/editing/saving
+            # it directly on the network target. While a workbook is open, Excel
+            # COM does many small random-access reads/writes; over a network
+            # share each of those is a slow round-trip. We copy the template to a
+            # local temp file, let Excel do all its work locally, then copy the
+            # finished report to the network destination in ONE sequential write
+            # at the end.
+            #
+            # Power Query is preserved: the report's data sources are ABSOLUTE
+            # paths written into the Links sheet, so they resolve identically no
+            # matter where the report file itself is stored. Saving locally then
+            # copying yields a byte-identical file at the destination.
+            local_temp = self.temp_dir / output_path.name
+            if local_temp.exists():
+                try:
+                    local_temp.unlink()
+                except Exception:
+                    pass
+            logger.info(f"Copying template to local staging file: {local_temp}")
+            shutil.copy2(str(template_path), str(local_temp))
             time.sleep(0.5)  # Give Windows time to complete the copy
-            
-            # Open the copied file
-            logger.info(f"Opening workbook: {output_path}")
-            wb = self._safe_open_workbook(excel, output_path)
+
+            # Open the local staging copy
+            logger.info(f"Opening workbook: {local_temp}")
+            wb = self._safe_open_workbook(excel, local_temp)
             
             # Get mapping configuration
             mapping_config = EXCEL_TEMPLATE_MAPPING.get(report_type, {})
@@ -189,7 +207,12 @@ class ExcelHandler:
             
             # Small delay
             time.sleep(0.5)
-            
+
+            # Copy the finished report from local staging to the network
+            # destination in a single sequential write.
+            logger.info(f"Copying finished report to destination: {output_path}")
+            shutil.copy2(str(local_temp), str(output_path))
+
             # Verify the file
             if output_path.exists():
                 file_size = output_path.stat().st_size
@@ -226,32 +249,48 @@ class ExcelHandler:
                 pythoncom.CoUninitialize()
             except:
                 pass
-    
+
+            # Remove the local staging file (best effort)
+            if local_temp is not None:
+                try:
+                    if local_temp.exists():
+                        local_temp.unlink()
+                except Exception:
+                    pass
+
     def _create_report_openpyxl(self, template_path: Path, output_path: Path,
                                data_mappings: Dict[str, str], report_type: str) -> bool:
         """
         Fallback method using openpyxl (may lose Power Query)
         """
         logger.warning("Using openpyxl - Power Query content may be lost!")
-        
+
+        local_temp = None
         try:
-            # Copy template first
-            shutil.copy2(str(template_path), str(output_path))
-            
+            # Stage locally, then copy to the network destination once (same
+            # rationale as the win32com path above).
+            local_temp = self.temp_dir / output_path.name
+            if local_temp.exists():
+                try:
+                    local_temp.unlink()
+                except Exception:
+                    pass
+            shutil.copy2(str(template_path), str(local_temp))
+
             # Load and update
-            wb = load_workbook(str(output_path), data_only=False, keep_links=True)
-            
+            wb = load_workbook(str(local_temp), data_only=False, keep_links=True)
+
             # Get mapping
             mapping_config = EXCEL_TEMPLATE_MAPPING.get(report_type, {})
             sheet_name = mapping_config.get('sheet', 'Links')
-            
+
             # Find sheet
             ws = None
             for sname in wb.sheetnames:
                 if sname.lower() == sheet_name.lower():
                     ws = wb[sname]
                     break
-            
+
             if ws:
                 # Update cells
                 for cell_ref, data_key in mapping_config.get('cells', {}).items():
@@ -261,16 +300,25 @@ class ExcelHandler:
                             ws[cell_ref] = str(value)
                     except:
                         pass
-            
-            # Save
-            wb.save(str(output_path))
+
+            # Save locally, then copy the finished report to the destination
+            wb.save(str(local_temp))
             wb.close()
-            
+            shutil.copy2(str(local_temp), str(output_path))
+
             return output_path.exists()
-            
+
         except Exception as e:
             logger.error(f"Fallback method error: {e}")
             return False
+        finally:
+            # Remove the local staging file (best effort)
+            if local_temp is not None:
+                try:
+                    if local_temp.exists():
+                        local_temp.unlink()
+                except Exception:
+                    pass
     
     def _safe_open_workbook(self, excel, file_path):
         """Safely open workbook with short path fallback"""
