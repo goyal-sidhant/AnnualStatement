@@ -41,7 +41,11 @@ class FileOrganizer:
         self.client_folder_settings = client_folder_settings or {}
         self.client_name_max_length = client_name_max_length if client_name_max_length > 0 else 35
         self.timestamp = get_timestamp()
-        
+
+        # Level 1 folder is resolved once per run and reused for every client
+        # (see _get_level1_folder). None until first resolved.
+        self._level1_folder = None
+
         # Tracking
         self.created_folders = []
         self.copied_files = []
@@ -144,6 +148,19 @@ class FileOrganizer:
             raise
 
     def _get_level1_folder(self) -> Path:
+        """Get or create Level 1 folder, resolving it only once per run.
+
+        create_client_structure() calls this once per client. Without caching,
+        'rerun'/'resume' mode re-scanned the target folder (iterdir + a stat per
+        entry) for every client, and 'fresh' mode re-issued a mkdir per client -
+        all redundant network round-trips. The result is identical within a run,
+        so we compute it once and reuse it.
+        """
+        if self._level1_folder is None:
+            self._level1_folder = self._compute_level1_folder()
+        return self._level1_folder
+
+    def _compute_level1_folder(self) -> Path:
         """Get or create Level 1 folder based on processing mode"""
         if self.processing_mode == 'fresh':
             # Create new timestamped folder

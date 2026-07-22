@@ -4,6 +4,7 @@ Power Query Extractor GUI Window - Two Tab Design
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+import os
 import logging
 import threading
 import json
@@ -13,6 +14,68 @@ from ..core.report_processor import ReportProcessor
 from ..core.data_consolidator import DataConsolidator
 
 logger = logging.getLogger(__name__)
+
+
+def _classify_version_reports(version_folder):
+    """Return (has_itc, has_sales) for a version folder using a SINGLE
+    directory listing instead of two separate glob() passes.
+
+    Reproduces the old checks exactly:
+        glob("ITC_Report_*.xlsx")  -> has_itc
+        glob("Sales_Report_*.xlsx") -> has_sales
+    On Windows glob is case-insensitive and '*' matches the '_Refreshed_'
+    variants too, so we lower-case the name and match the same way.
+    """
+    has_itc = False
+    has_sales = False
+    try:
+        with os.scandir(version_folder) as entries:
+            for entry in entries:
+                nl = entry.name.lower()
+                if nl.startswith('itc_report_') and nl.endswith('.xlsx'):
+                    has_itc = True
+                elif nl.startswith('sales_report_') and nl.endswith('.xlsx'):
+                    has_sales = True
+    except OSError:
+        pass
+    return has_itc, has_sales
+
+
+def _latest_refresh_times(version_folder):
+    """Return (itc_status, sales_status): formatted mtimes of the newest
+    refreshed ITC and Sales reports, or None each. Uses ONE directory listing
+    for both (the old code did two globs plus a redundant second stat on each
+    winner).
+
+    Reproduces the old checks:
+        glob("ITC_Report_*_Refreshed_*.xlsx")   -> max by st_mtime -> strftime
+        glob("Sales_Report_*_Refreshed_*.xlsx") -> max by st_mtime -> strftime
+    """
+    itc_mtime = None
+    sales_mtime = None
+    try:
+        with os.scandir(version_folder) as entries:
+            for entry in entries:
+                nl = entry.name.lower()
+                if '_refreshed_' not in nl or not nl.endswith('.xlsx'):
+                    continue
+                if nl.startswith('itc_report_'):
+                    m = entry.stat().st_mtime
+                    if itc_mtime is None or m > itc_mtime:
+                        itc_mtime = m
+                elif nl.startswith('sales_report_'):
+                    m = entry.stat().st_mtime
+                    if sales_mtime is None or m > sales_mtime:
+                        sales_mtime = m
+    except OSError:
+        pass
+
+    def _fmt(mt):
+        if mt is None:
+            return None
+        return datetime.fromtimestamp(mt).strftime("%Y-%m-%d %H:%M")
+
+    return _fmt(itc_mtime), _fmt(sales_mtime)
 
 
 class PowerQueryExtractorApp(tk.Tk):
@@ -528,16 +591,15 @@ class PowerQueryExtractorApp(tk.Tk):
                     if version_folders:
                         latest_version = max(version_folders, key=lambda x: x.name)
                         
-                        # Check for report files
-                        itc_reports = list(latest_version.glob("ITC_Report_*.xlsx"))
-                        sales_reports = list(latest_version.glob("Sales_Report_*.xlsx"))
-                        
+                        # Check for report files (single directory listing)
+                        has_itc, has_sales = _classify_version_reports(latest_version)
+
                         clients.append({
                             'name': client_folder.name,
                             'path': client_folder,
                             'latest_version': latest_version,
-                            'has_itc': len(itc_reports) > 0,
-                            'has_sales': len(sales_reports) > 0
+                            'has_itc': has_itc,
+                            'has_sales': has_sales
                         })
             
             self.display_clients(clients)
@@ -636,28 +698,11 @@ class PowerQueryExtractorApp(tk.Tk):
             self.process_btn.config(state='normal')
     
     def get_refresh_status(self, client):
-        """Get last refresh status from existing files"""
-        itc_status = None
-        sales_status = None
-
+        """Get last refresh status from existing files (single directory listing)"""
         try:
-            # Check for existing refreshed ITC files
-            itc_refreshed = list(client['latest_version'].glob("ITC_Report_*_Refreshed_*.xlsx"))
-            if itc_refreshed:
-                latest_itc = max(itc_refreshed, key=lambda x: x.stat().st_mtime)
-                mtime = datetime.fromtimestamp(latest_itc.stat().st_mtime)
-                itc_status = mtime.strftime("%Y-%m-%d %H:%M")
-
-            # Check for existing refreshed Sales files
-            sales_refreshed = list(client['latest_version'].glob("Sales_Report_*_Refreshed_*.xlsx"))
-            if sales_refreshed:
-                latest_sales = max(sales_refreshed, key=lambda x: x.stat().st_mtime)
-                mtime = datetime.fromtimestamp(latest_sales.stat().st_mtime)
-                sales_status = mtime.strftime("%Y-%m-%d %H:%M")
-        except:
-            pass
-
-        return itc_status, sales_status
+            return _latest_refresh_times(client['latest_version'])
+        except Exception:
+            return None, None
 
     def format_refresh_status(self, itc_status, sales_status):
         """Format refresh status for display"""
