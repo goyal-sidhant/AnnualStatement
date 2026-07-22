@@ -88,7 +88,10 @@ class PowerQueryExtractorApp(tk.Tk):
         self.processor = ReportProcessor()
         self.consolidator = DataConsolidator()
         self.client_vars = {}
-        self.cache_file = Path("gst_organizer_cache.json")
+        # The main organizer writes its cache to the user's home directory as a
+        # dotfile (see gui/utils/cache_manager.py). Read from the SAME location so
+        # the extractor can auto-load the folder the main app last used.
+        self.cache_file = Path.home() / '.gst_organizer_cache.json'
         self.is_processing = False
         
         self.setup_window()
@@ -589,7 +592,12 @@ class PowerQueryExtractorApp(tk.Tk):
                     # Check for version folders
                     version_folders = list(client_folder.glob("Version-*"))
                     if version_folders:
-                        latest_version = max(version_folders, key=lambda x: x.name)
+                        # Pick the newest version by modified-time (same as the
+                        # level-1 folder above). Sorting by name is wrong because
+                        # the name is "Version-DDMMYY HHMM" - day-first text does
+                        # not sort chronologically across month boundaries
+                        # (e.g. "300626" would sort after "020726").
+                        latest_version = max(version_folders, key=lambda x: x.stat().st_mtime)
                         
                         # Check for report files (single directory listing)
                         has_itc, has_sales = _classify_version_reports(latest_version)

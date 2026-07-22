@@ -36,6 +36,9 @@ class PowerQueryExtractor:
     def load_cached_folder(self):
         """Load target folder from main app's cache"""
         cache_files = [
+            # The main organizer writes here (gui/utils/cache_manager.py) - check
+            # it FIRST so the extractor auto-loads the folder the main app used.
+            Path.home() / '.gst_organizer_cache.json',
             Path("gst_organizer_cache.json"),
             Path(".cache/app_state.json"),
             Path("config/last_session.json")
