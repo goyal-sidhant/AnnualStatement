@@ -20,7 +20,7 @@ FILE_PATTERNS: Dict[str, Dict[str, any]] = {
         'groups': ['client', 'state', 'period']
     },
     'ImsReco': {
-        'pattern': re.compile(r'^ImsReco-([^-]+)-([^-]+)-(\d{8})\.xlsx?$', re.IGNORECASE),
+        'pattern': re.compile(r'^ImsReco-([^-]+)-([^-]+)-(\d{8})(?:\s*\(\d+\))?\.xlsx?$', re.IGNORECASE),
         'type': 'IMS Reco',
         'category': 'ITC',
         'folder': 'itc',
