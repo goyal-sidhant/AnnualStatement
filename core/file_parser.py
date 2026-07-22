@@ -181,17 +181,12 @@ class FileParser:
         try:
             # Get file info
             file_info = get_file_info(file_path)
-            
-            # Validate Excel file
-            if not validate_excel_file(file_path):
-                self.variations.append({
-                    'filename': file_path.name,
-                    'path': str(file_path),
-                    'issue': 'Invalid or corrupted Excel file',
-                    'size': file_info.get('size', 0)
-                })
-                return
-            
+
+            # NOTE: We do NOT re-validate here. Every file reaching _process_file
+            # came from find_excel_files(), which already ran validate_excel_file()
+            # on it. Re-validating opened + stat'd each file a second time - a
+            # redundant round-trip per file on network shares.
+
             # Parse filename
             parsed = self.parse_filename(file_path.name)
             

@@ -10,6 +10,7 @@ import shutil
 import hashlib
 import logging
 from pathlib import Path
+from stat import S_ISREG, S_ISDIR
 from datetime import datetime
 from typing import Union, List, Optional, Dict, Any, Tuple
 import platform  # ADD THIS LINE
@@ -128,8 +129,12 @@ def get_file_info(file_path: Union[str, Path]) -> Dict[str, Any]:
             'modified': datetime.fromtimestamp(stat.st_mtime),
             'created': datetime.fromtimestamp(stat.st_ctime),
             'extension': path.suffix.lower(),
-            'is_file': path.is_file(),
-            'is_dir': path.is_dir()
+            # Derive file/dir from the single stat() above instead of calling
+            # path.is_file()/path.is_dir(), which would each do another stat()
+            # (extra round-trips on network shares). Same result for the file
+            # that already passed the exists() + stat() checks above.
+            'is_file': S_ISREG(stat.st_mode),
+            'is_dir': S_ISDIR(stat.st_mode)
         }
     except Exception as e:
         logger.error(f"Error getting file info for {file_path}: {e}")
@@ -251,14 +256,20 @@ def find_excel_files(folder: Union[str, Path]) -> List[Path]:
     try:
         folder_path = Path(folder)
         excel_files = []
-        
-        patterns = ['*.xlsx', '*.xls', '*.xlsm']
-        for pattern in patterns:
-            excel_files.extend(folder_path.glob(pattern))
-        
+
+        # Enumerate the directory ONCE with os.scandir instead of three separate
+        # glob() passes (each glob is a full directory listing - expensive on a
+        # network share). str.endswith on the lower-cased name reproduces the old
+        # patterns '*.xlsx'/'*.xls'/'*.xlsm', which are case-insensitive on Windows.
+        excel_extensions = ('.xlsx', '.xls', '.xlsm')
+        with os.scandir(folder_path) as entries:
+            for entry in entries:
+                if entry.name.lower().endswith(excel_extensions):
+                    excel_files.append(Path(entry.path))
+
         # Filter valid Excel files only
         valid_files = [f for f in excel_files if validate_excel_file(f)]
-        
+
         return sorted(valid_files)
         
     except Exception as e:
