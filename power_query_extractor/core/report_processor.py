@@ -164,8 +164,6 @@ class ReportProcessor:
             }
     
     def _refresh_power_query_simple(self, excel_file):
-        # TEST: Add this line to check if logging works
-        print(f"PROCESSING: {excel_file.name}")  # This will show in console
         """Simple refresh approach with proper error handling"""
         excel = None
         wb = None

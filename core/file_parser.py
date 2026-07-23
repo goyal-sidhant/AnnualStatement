@@ -77,7 +77,7 @@ class FileParser:
         
         # Debug log for Sales files
         if 'sales' in filename.lower():
-            logger.info(f"[DEBUG] Parsing potential Sales file: {filename}")
+            logger.debug(f"Parsing potential Sales file: {filename}")
         
         # Try each pattern
         for pattern_name, pattern_info in self.patterns.items():
@@ -123,8 +123,8 @@ class FileParser:
                 
                 # Special debug for Sales patterns
                 if 'Sales' in pattern_name:
-                    logger.info(f"[DEBUG] Sales pattern matched: {pattern_name}")
-                    logger.info(f"[DEBUG] Extracted data: client={result['client']}, state={result['state']}, type={result['type']}")
+                    logger.debug(f"Sales pattern matched: {pattern_name}")
+                    logger.debug(f"Extracted data: client={result['client']}, state={result['state']}, type={result['type']}")
                 
                 break
         
@@ -242,7 +242,7 @@ class FileParser:
         
         # Special debug for Sales files
         if 'Sales' in file_type:
-            logger.info(f"[DEBUG] Sales file detected: {file_data['name']} -> Type: {file_type}")
+            logger.debug(f"Sales file detected: {file_data['name']} -> Type: {file_type}")
     
     def _analyze_client_completeness(self):
         """Analyze which files are missing for each client"""

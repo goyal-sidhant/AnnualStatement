@@ -69,10 +69,10 @@ class ExcelHandler:
         """
         Create report from template preserving Power Query
         """
-        logger.info(f"[DEBUG] create_report_from_template called for {report_type}")
-        logger.info(f"[DEBUG] Template path: {template_path}")
-        logger.info(f"[DEBUG] Output path: {output_path}")
-        logger.info(f"[DEBUG] Data mappings: {data_mappings}")
+        logger.debug(f"create_report_from_template called for {report_type}")
+        logger.debug(f"Template path: {template_path}")
+        logger.debug(f"Output path: {output_path}")
+        logger.debug(f"Data mappings: {data_mappings}")
         
         template_path = Path(template_path)
         output_path = Path(output_path)
@@ -81,21 +81,21 @@ class ExcelHandler:
         if not template_path.exists():
             logger.error(f"[DEBUG] Template file does not exist: {template_path}")
             raise FileNotFoundError(f"Template not found: {template_path}")
-        logger.info(f"[DEBUG] Template file exists, size: {template_path.stat().st_size} bytes")
+        logger.debug(f"Template file exists, size: {template_path.stat().st_size} bytes")
         
         ensure_path_exists(output_path.parent)
-        logger.info(f"[DEBUG] Output directory ensured: {output_path.parent}")
+        logger.debug(f"Output directory ensured: {output_path.parent}")
         
         if USE_WIN32COM:
             # Use Excel COM for Windows (preserves Power Query)
-            logger.info(f"[DEBUG] Using WIN32COM path for {report_type}")
+            logger.debug(f"Using WIN32COM path for {report_type}")
             return self._create_report_win32com(
                 template_path, output_path, data_mappings, report_type
             )
         else:
             # Fallback to openpyxl (no Power Query support)
             logger.warning("Not on Windows - Power Query may not be preserved!")
-            logger.info(f"[DEBUG] Using openpyxl fallback path for {report_type}")
+            logger.debug(f"Using openpyxl fallback path for {report_type}")
             return self._create_report_openpyxl(
                 template_path, output_path, data_mappings, report_type
             )
@@ -105,10 +105,10 @@ class ExcelHandler:
         """
         Create report using Excel COM (preserves all Excel features including Power Query)
         """
-        logger.info(f"[DEBUG] _create_report_win32com called for {report_type}")
-        logger.info(f"[DEBUG] Template: {template_path}")
-        logger.info(f"[DEBUG] Output: {output_path}")
-        logger.info(f"[DEBUG] USE_WIN32COM: {USE_WIN32COM}")
+        logger.debug(f"_create_report_win32com called for {report_type}")
+        logger.debug(f"Template: {template_path}")
+        logger.debug(f"Output: {output_path}")
+        logger.debug(f"USE_WIN32COM: {USE_WIN32COM}")
 
         excel = None
         wb = None
@@ -602,15 +602,15 @@ class ExcelHandler:
         """
         Prepare data mappings for template
         """
-        logger.info(f"[DEBUG] prepare_template_data called for {report_type}")
-        logger.info(f"[DEBUG] Client: {client_info.get('client', 'Unknown')}")
-        logger.info(f"[DEBUG] State: {client_info.get('state', 'Unknown')}")
-        logger.info(f"[DEBUG] Files available: {list(client_info.get('files', {}).keys())}")
+        logger.debug(f"prepare_template_data called for {report_type}")
+        logger.debug(f"Client: {client_info.get('client', 'Unknown')}")
+        logger.debug(f"State: {client_info.get('state', 'Unknown')}")
+        logger.debug(f"Files available: {list(client_info.get('files', {}).keys())}")
         
         data = {}
         
         state_code = get_state_code(client_info['state'])
-        logger.info(f"[DEBUG] State code: {state_code}")
+        logger.debug(f"State code: {state_code}")
 
         try:
             if report_type == 'ITC':
@@ -651,57 +651,57 @@ class ExcelHandler:
                     data['ims_filename'] = ''
                     
             elif report_type == 'Sales':
-                logger.info("[DEBUG] Preparing Sales report data...")
+                logger.debug("Preparing Sales report data...")
                 
                 # Sales folder
                 sales_files = client_info['files'].get('Sales', [])
-                logger.info(f"[DEBUG] Found {len(sales_files)} Sales files")
+                logger.debug(f"Found {len(sales_files)} Sales files")
                 
                 if sales_files:
                     data['sales_folder'] = clean_windows_path(folders.get('sales', ''))
                     data['sales_filename'] = extract_filename_without_extension(
                         sales_files[0]['name']
                     )
-                    logger.info(f"[DEBUG] Sales folder: {data['sales_folder']}")
-                    logger.info(f"[DEBUG] Sales filename: {data['sales_filename']}")
+                    logger.debug(f"Sales folder: {data['sales_folder']}")
+                    logger.debug(f"Sales filename: {data['sales_filename']}")
                 else:
                     data['sales_folder'] = ''
                     data['sales_filename'] = ''
-                    logger.info("[DEBUG] No Sales files found, using empty values")
+                    logger.debug("No Sales files found, using empty values")
                 
                 # Annual report (in version folder)
                 annual_files = client_info['files'].get('Annual Report', [])
-                logger.info(f"[DEBUG] Found {len(annual_files)} Annual Report files")
+                logger.debug(f"Found {len(annual_files)} Annual Report files")
                 
                 if annual_files:
                     data['annual_folder'] = clean_windows_path(folders.get('version', ''))
                     data['annual_filename'] = extract_filename_without_extension(
                         annual_files[0]['name']
                     )
-                    logger.info(f"[DEBUG] Annual folder: {data['annual_folder']}")
-                    logger.info(f"[DEBUG] Annual filename: {data['annual_filename']}")
+                    logger.debug(f"Annual folder: {data['annual_folder']}")
+                    logger.debug(f"Annual filename: {data['annual_filename']}")
                 else:
                     data['annual_folder'] = ''
                     data['annual_filename'] = ''
-                    logger.info("[DEBUG] No Annual Report files found, using empty values")
+                    logger.debug("No Annual Report files found, using empty values")
                 
                 # Sales Reco
                 sales_reco_files = client_info['files'].get('Sales Reco', [])
-                logger.info(f"[DEBUG] Found {len(sales_reco_files)} Sales Reco files")
+                logger.debug(f"Found {len(sales_reco_files)} Sales Reco files")
                 
                 if sales_reco_files:
                     data['sales_reco_folder'] = clean_windows_path(folders.get('sales', ''))
                     data['sales_reco_filename'] = extract_filename_without_extension(
                         sales_reco_files[0]['name']
                     )
-                    logger.info(f"[DEBUG] Sales Reco folder: {data['sales_reco_folder']}")
-                    logger.info(f"[DEBUG] Sales Reco filename: {data['sales_reco_filename']}")
+                    logger.debug(f"Sales Reco folder: {data['sales_reco_folder']}")
+                    logger.debug(f"Sales Reco filename: {data['sales_reco_filename']}")
                 else:
                     data['sales_reco_folder'] = ''
                     data['sales_reco_filename'] = ''
-                    logger.info("[DEBUG] No Sales Reco files found, using empty values")
+                    logger.debug("No Sales Reco files found, using empty values")
                 
-                logger.info(f"[DEBUG] Final Sales data prepared: {data}")
+                logger.debug(f"Final Sales data prepared: {data}")
             
         except Exception as e:
             logger.error(f"Error preparing template data: {e}")

@@ -4,6 +4,10 @@
 # Core dependency for Excel operations
 openpyxl>=3.1.2
 
+# Required on Windows for Excel COM automation / Power Query refresh.
+# power_query_extractor and excel_handler import pythoncom/win32com/win32gui.
+pywin32>=305; sys_platform == 'win32'
+
 # Optional but recommended for better performance
 lxml>=4.9.0
 
