@@ -68,6 +68,13 @@ class ProcessingHandler:
     
     def start_processing(self):
         """Start processing selected clients"""
+        # Re-entrancy guard. The Start button is bound with .bind('<Button-1>'),
+        # which still fires even when the button is visually 'disabled', so a
+        # click during a run could launch a SECOND worker thread. Bail out if a
+        # run is already in progress.
+        if getattr(self.app, 'is_processing', False):
+            return
+
         if not self.app.file_handler.validate_processing_inputs():
             return
         

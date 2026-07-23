@@ -175,7 +175,10 @@ class ClientHandler:
     def toggle_folder_name_setting(self, item):
         """Toggle folder name setting for a client"""
         values = list(self.app.client_tree.item(item)['values'])
-        client_key = f"{values[0]}-{values[1]}"
+        # Key by state CODE (values[1] is the state NAME) so it matches the key
+        # FileOrganizer reads (client-STATECODE) and get_selected_clients builds.
+        # Keying by name here meant per-client toggles were silently ignored.
+        client_key = f"{values[0]}-{get_state_code(values[1])}"
         
         # Toggle the setting
         current = self.app.client_folder_settings.get(client_key, False)
@@ -211,7 +214,8 @@ class ClientHandler:
             # Global is ON - update all individual settings to Yes
             for item in self.app.client_tree.get_children():
                 values = list(self.app.client_tree.item(item)['values'])
-                client_key = f"{values[0]}-{values[1]}"
+                # Key by state CODE to match FileOrganizer / get_selected_clients.
+                client_key = f"{values[0]}-{get_state_code(values[1])}"
                 self.app.client_folder_settings[client_key] = True
                 values[6] = '☑ Yes'
                 self.app.client_tree.item(item, values=values)

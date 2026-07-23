@@ -40,11 +40,12 @@ class TestSanitizeFilename:
         # Duplicate markers like (1) survive sanitisation.
         assert sanitize_filename("(1) Sales-ABC-DL.xlsx") == "(1)_Sales-ABC-DL.xlsx"
 
-    def test_substring_abbreviation_quirk(self):
-        # NOTE: abbreviation is a case-sensitive *substring* replace, so 'Private'
-        # inside 'Privateer' is mangled. Pinned as current behaviour; see the
-        # word-boundary version used by create_client_state_key for contrast.
-        assert sanitize_filename("Privateer Unlimited") == "Pvter_Unlimited"
+    def test_abbreviation_uses_word_boundaries(self):
+        # Words that merely CONTAIN 'Private'/'Limited' must NOT be abbreviated.
+        assert sanitize_filename("Privateer Unlimited") == "Privateer_Unlimited"
+
+    def test_abbreviation_is_case_insensitive(self):
+        assert sanitize_filename("ABC PRIVATE LIMITED") == "ABC_Pvt_Ltd"
 
     def test_long_name_is_truncated_within_limit(self):
         result = sanitize_filename("x" * 250 + ".xlsx")

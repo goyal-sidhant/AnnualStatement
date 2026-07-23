@@ -75,9 +75,12 @@ def sanitize_filename(filename: str, max_length: int = 200) -> str:
     base_name = Path(filename).stem
     extension = Path(filename).suffix
     
-    # Apply business abbreviations FIRST
-    base_name = base_name.replace('Private', 'Pvt')
-    base_name = base_name.replace('Limited', 'Ltd')
+    # Apply business abbreviations FIRST. Use word-boundary, case-insensitive
+    # matching (same as create_client_state_key) so 'ABC PRIVATE LIMITED'
+    # abbreviates correctly and words that merely CONTAIN these (e.g.
+    # 'Privateer', 'Unlimited') are not mangled.
+    base_name = re.sub(r'\bPrivate\b', 'Pvt', base_name, flags=re.IGNORECASE)
+    base_name = re.sub(r'\bLimited\b', 'Ltd', base_name, flags=re.IGNORECASE)
     
     # Define invalid characters WITHOUT including hyphen
     invalid_chars = '<>:"/\\|?*[]{}+=!@#$%^,;\'"`~'
