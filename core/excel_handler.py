@@ -38,6 +38,7 @@ from utils.helpers import (
     validate_excel_file, clean_windows_path, extract_filename_without_extension,
     get_short_path, get_state_code  # ADD THESE TWO
 )
+from utils.excel_com import find_open_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -329,12 +330,15 @@ class ExcelHandler:
             logger.error(f"File does not exist: {file_path}")
             raise FileNotFoundError(f"File not found: {file_path}")
         
-        # Check if already open in Excel
-        for wb in excel.Workbooks:
-            if Path(wb.FullName).absolute() == file_path:
-                logger.info(f"File already open, using existing workbook")
-                return wb
-        
+        # Check if already open in Excel (shared helper - see utils/excel_com.py).
+        # NOTE: the open-with-fallback logic below intentionally differs from
+        # ReportProcessor's (this opens a local temp file; that opens a network
+        # file that may be locked). Only the detection above is shared.
+        existing = find_open_workbook(excel, file_path)
+        if existing is not None:
+            logger.info("File already open, using existing workbook")
+            return existing
+
         file_str = str(file_path)
         path_length = len(file_str)
         logger.info(f"Path length: {path_length} characters")

@@ -14,6 +14,7 @@ import win32api
 import win32con
 import win32gui
 from ..config.cell_mappings import CELL_MAPPINGS
+from utils.excel_com import find_open_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -659,11 +660,14 @@ class ReportProcessor:
             self._log(f"❌ Cannot access file: {e}")
             raise
         
-        # Check if already open in Excel
-        for wb in excel.Workbooks:
-            if Path(wb.FullName).absolute() == file_path:
-                self._log(f"📌 File already open, using existing workbook")
-                return wb
+        # Check if already open in Excel (shared helper - see utils/excel_com.py).
+        # NOTE: the elaborate open-with-fallback logic below (extended paths,
+        # close-by-name retries) intentionally differs from ExcelHandler's - it
+        # opens a possibly-locked NETWORK file. Only the detection here is shared.
+        existing = find_open_workbook(excel, file_path)
+        if existing is not None:
+            self._log(f"📌 File already open, using existing workbook")
+            return existing
         
         file_str = str(file_path)
 
