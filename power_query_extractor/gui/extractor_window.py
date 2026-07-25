@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from ..core.report_processor import ReportProcessor
 from ..core.data_consolidator import DataConsolidator
+from ..core.refresh_naming import is_refreshed_name
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +42,18 @@ def _classify_version_reports(version_folder):
     return has_itc, has_sales
 
 
-def _latest_refresh_times(version_folder):
+def _latest_refresh_times(version_folder, suffix_pattern=None):
     """Return (itc_status, sales_status): formatted mtimes of the newest
     refreshed ITC and Sales reports, or None each. Uses ONE directory listing
-    for both (the old code did two globs plus a redundant second stat on each
-    winner).
+    for both.
 
-    Reproduces the old checks:
-        glob("ITC_Report_*_Refreshed_*.xlsx")   -> max by st_mtime -> strftime
-        glob("Sales_Report_*_Refreshed_*.xlsx") -> max by st_mtime -> strftime
+    The time shown is the file's modification time on disk, NOT the timestamp
+    embedded in its name - the name only identifies which files are refreshed
+    copies, and mtime reflects when the file was actually written.
+
+    `suffix_pattern` is the configured "Refreshed File Suffix". Passing it means
+    a customised suffix is recognised; previously this hardcoded "_Refreshed_",
+    so changing the setting made every report read as "Never refreshed".
     """
     itc_mtime = None
     sales_mtime = None
@@ -57,7 +61,7 @@ def _latest_refresh_times(version_folder):
         with os.scandir(version_folder) as entries:
             for entry in entries:
                 nl = entry.name.lower()
-                if '_refreshed_' not in nl or not nl.endswith('.xlsx'):
+                if not is_refreshed_name(entry.name, suffix_pattern):
                     continue
                 if nl.startswith('itc_report_'):
                     m = entry.stat().st_mtime
@@ -748,9 +752,17 @@ class ExtractorPanel(ttk.Frame):
     def get_refresh_status(self, client):
         """Get last refresh status from existing files (single directory listing)"""
         try:
-            return _latest_refresh_times(client['latest_version'])
+            return _latest_refresh_times(client['latest_version'],
+                                         self._configured_suffix())
         except Exception:
             return None, None
+
+    def _configured_suffix(self):
+        """The user's "Refreshed File Suffix" setting, if the widget exists yet."""
+        try:
+            return self.suffix_pattern_var.get()
+        except Exception:
+            return None
 
     def format_refresh_status(self, itc_status, sales_status):
         """Format refresh status for display"""

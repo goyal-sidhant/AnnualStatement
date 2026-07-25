@@ -14,6 +14,7 @@ import win32api
 import win32con
 import win32gui
 from ..config.cell_mappings import CELL_MAPPINGS
+from ..core.refresh_naming import DEFAULT_SUFFIX_PATTERN, is_refreshed_copy_of
 from utils.excel_com import find_open_workbook
 
 logger = logging.getLogger(__name__)
@@ -100,8 +101,15 @@ class ReportProcessor:
             skip_refresh = EXTRACTION_OPTIONS.get('skip_refresh', False)
             
             if skip_refresh:
-                # Look for existing refreshed file
-                existing_refreshed = list(original_file.parent.glob(f"{original_file.stem}_Refreshed_*.xlsx"))
+                # Look for an existing refreshed file. Matches the CONFIGURED
+                # suffix (plus the legacy "_Refreshed_"), because hardcoding
+                # "_Refreshed_" here meant a customised suffix found nothing and
+                # every report was refreshed again despite skip_refresh.
+                existing_refreshed = [
+                    p for p in original_file.parent.glob(f"{original_file.stem}*.xlsx")
+                    if is_refreshed_copy_of(p.name, original_file.stem,
+                                            self.suffix_pattern)
+                ]
                 if existing_refreshed:
                     # Use the most recent refreshed file
                     refreshed_file = max(existing_refreshed, key=lambda x: x.stat().st_mtime)

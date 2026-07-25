@@ -94,6 +94,35 @@ class TestRefreshStatusUpdates:
         assert text.startswith('ITC: ')
         assert 'Never' not in text.split('|')[0]
 
+    def test_custom_suffix_is_picked_up_from_the_setting(self, embedded, root):
+        """The user's "Refreshed File Suffix" must reach the detection.
+
+        Reported bug: with a customised suffix the column stayed on "Never
+        refreshed" even straight after a successful run, because detection
+        hardcoded "_Refreshed_".
+        """
+        panel, version = embedded
+        panel.suffix_pattern_var.set("_Updated_{timestamp}")
+        (version / "ITC_Report_ABC_DL_Updated_250726_1130.xlsx").write_bytes(XL)
+
+        panel.refresh_status_display()
+        root.update_idletasks()
+
+        text = panel.client_vars['ABC-DL']['status_label'].cget('text')
+        assert text.startswith('ITC: '), f"custom suffix not recognised: {text!r}"
+
+    def test_legacy_files_still_recognised_after_changing_the_suffix(self, embedded, root):
+        """Changing the setting must not blank out the existing history."""
+        panel, version = embedded
+        panel.suffix_pattern_var.set("_Updated_{timestamp}")
+        (version / "ITC_Report_ABC_DL_Refreshed_250726_1130.xlsx").write_bytes(XL)
+
+        panel.refresh_status_display()
+        root.update_idletasks()
+
+        text = panel.client_vars['ABC-DL']['status_label'].cget('text')
+        assert text.startswith('ITC: ')
+
     def test_selections_survive_the_status_update(self, embedded, root):
         """Updating in place (not re-scanning) must keep the user's ticks."""
         panel, version = embedded
