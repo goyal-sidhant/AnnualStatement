@@ -12,24 +12,10 @@ from gui.tabs.setup_tab import SetupTab
 from gui.utils import setup_validation as sv
 
 
-@pytest.fixture(scope="module")
-def root():
-    """One Tk root for the whole module.
-
-    Creating and destroying a Tk() per test exhausts Tk resources and makes the
-    suite flakily skip, so the root is shared; each test still gets a fresh
-    container frame and a fresh FakeApp (with its own variables and traces).
-    """
-    try:
-        r = tk.Tk()
-    except tk.TclError:
-        pytest.skip("no display available for Tk")
-    r.withdraw()
-    yield r
-    try:
-        r.destroy()
-    except tk.TclError:
-        pass
+@pytest.fixture
+def root(tk_root):
+    """The session-wide Tk root (see tests/conftest.py)."""
+    return tk_root
 
 
 class FakeApp:

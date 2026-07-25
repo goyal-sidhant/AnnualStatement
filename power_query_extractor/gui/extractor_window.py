@@ -78,12 +78,32 @@ def _latest_refresh_times(version_folder):
     return _fmt(itc_mtime), _fmt(sales_mtime)
 
 
-class PowerQueryExtractorApp(tk.Tk):
-    """Main window for PQ Extractor with two tabs"""
-    
-    def __init__(self, target_folder=None):
-        super().__init__()
-        
+def configure_extractor_styles():
+    """Apply the extractor's ttk styling.
+
+    ttk styles are APPLICATION-global, so this must only be called by the
+    standalone window. Calling it while embedded would silently re-theme the
+    host application's notebook as well.
+    """
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure('TNotebook', background='#f0f0f0')
+    style.configure('TNotebook.Tab', padding=[20, 10])
+
+
+class ExtractorPanel(ttk.Frame):
+    """The Power Query Extractor UI, as a panel that can live in any parent.
+
+    Used both by the standalone window (PowerQueryExtractorApp, below) and as a
+    tab inside the main organizer, so the behaviour is defined in exactly one
+    place. Nothing here touches window-level state (title/geometry/styles) - see
+    PowerQueryExtractorApp for that.
+    """
+
+    def __init__(self, parent, target_folder=None,
+                 show_header=True, show_status_bar=True):
+        super().__init__(parent)
+
         self.target_folder = target_folder
         self.processor = ReportProcessor()
         self.consolidator = DataConsolidator()
@@ -93,51 +113,42 @@ class PowerQueryExtractorApp(tk.Tk):
         # the extractor can auto-load the folder the main app last used.
         self.cache_file = Path.home() / '.gst_organizer_cache.json'
         self.is_processing = False
-        
-        self.setup_window()
+        # When embedded, the host already provides a title banner and status bar.
+        self.show_header = show_header
+        self.show_status_bar = show_status_bar
+
+        self._init_vars()
         self.create_widgets()
-        
+
         # Auto-load folder if available
         if target_folder:
             self.folder_path.set(target_folder)
             self.scan_folder()
         else:
             self.load_from_cache()
-    
-    def setup_window(self):
-        """Configure window settings"""
-        self.title("Power Query Extractor")
-        self.geometry("1000x700")
-        self.minsize(900, 600)
-        
-        # Variables
+
+    def _init_vars(self):
+        """Create the Tk variables this panel binds to."""
         self.folder_path = tk.StringVar()
         self.status_var = tk.StringVar(value="Ready")
         self.progress_var = tk.DoubleVar()
-        
-        # Style
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        # Configure notebook style
-        style.configure('TNotebook', background='#f0f0f0')
-        style.configure('TNotebook.Tab', padding=[20, 10])
-    
+
     def create_widgets(self):
         """Create all GUI widgets"""
-        # Title
-        title_frame = tk.Frame(self, bg='#0078D4', height=60)
-        title_frame.pack(fill='x')
-        title_frame.pack_propagate(False)
-        
-        tk.Label(
-            title_frame,
-            text="🔄 Power Query Report Extractor",
-            font=('Segoe UI', 18, 'bold'),
-            bg='#0078D4',
-            fg='white'
-        ).pack(pady=15)
-        
+        # Title - skipped when embedded, where the host already shows a banner
+        if self.show_header:
+            title_frame = tk.Frame(self, bg='#0078D4', height=60)
+            title_frame.pack(fill='x')
+            title_frame.pack_propagate(False)
+
+            tk.Label(
+                title_frame,
+                text="🔄 Power Query Report Extractor",
+                font=('Segoe UI', 18, 'bold'),
+                bg='#0078D4',
+                fg='white'
+            ).pack(pady=15)
+
         # Create notebook for tabs
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
@@ -152,9 +163,10 @@ class PowerQueryExtractorApp(tk.Tk):
         self.notebook.add(self.processing_tab, text='Processing')
         self.create_processing_tab()
         
-        # Status bar
-        self.create_status_bar()
-        
+        # Status bar - skipped when embedded, where the host provides one
+        if self.show_status_bar:
+            self.create_status_bar()
+
         # Bind tab change event
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
     
@@ -971,3 +983,37 @@ class PowerQueryExtractorApp(tk.Tk):
     def _append_log(self, text, level):
         self.log_text.insert('end', text, level)
         self.log_text.see('end')
+
+
+class PowerQueryExtractorApp(tk.Tk):
+    """Standalone window wrapping ExtractorPanel.
+
+    Owns only the window-level concerns - title, geometry and the global ttk
+    styling - which must NOT run when the panel is embedded in another app.
+    """
+
+    def __init__(self, target_folder=None):
+        super().__init__()
+
+        self.title("Power Query Extractor")
+        self.geometry("1000x700")
+        self.minsize(900, 600)
+
+        configure_extractor_styles()
+
+        self.panel = ExtractorPanel(self, target_folder=target_folder)
+        self.panel.pack(fill='both', expand=True)
+
+    def __getattr__(self, name):
+        """Forward unknown attributes to the panel.
+
+        This class used to BE the panel, so anything that reached in for e.g.
+        `app.log_message` or `app.client_vars` keeps working. Only consulted for
+        attributes not found normally, and it looks the panel up in __dict__ so
+        it cannot recurse before the panel exists.
+        """
+        try:
+            panel = self.__dict__['panel']
+        except KeyError:
+            raise AttributeError(name)
+        return getattr(panel, name)

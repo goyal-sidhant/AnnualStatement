@@ -27,3 +27,26 @@ def _write_fake_excel(path, header=PK_SIG, size=2048):
 def make_excel():
     """Fixture returning a helper to create fake-but-valid Excel files on disk."""
     return _write_fake_excel
+
+
+@pytest.fixture(scope="session")
+def tk_root():
+    """A single Tk root shared by every GUI test in the session.
+
+    Tk does not reliably allow creating a new root after an earlier one has been
+    destroyed in the same process. Creating one per test - or even per module -
+    made GUI tests skip intermittently with "no display available", which
+    silently hid whether they had run at all. Tests build their own container
+    widgets underneath this root and destroy those instead.
+    """
+    import tkinter as tk
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("no display available for Tk")
+    root.withdraw()
+    yield root
+    try:
+        root.destroy()
+    except tk.TclError:
+        pass
