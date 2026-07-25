@@ -700,11 +700,39 @@ class PowerQueryExtractorApp(tk.Tk):
                 anchor='w'
             )
             status_label.pack(side='left')
+            # Keep the label so the timestamps can be updated in place after a
+            # run (see refresh_status_display).
+            self.client_vars[client['name']]['status_label'] = status_label
 
         # Enable process button
         if clients:
             self.process_btn.config(state='normal')
-    
+
+    def refresh_status_display(self):
+        """Re-read each client's refreshed-file timestamps and update its row.
+
+        Called once processing finishes, so the "last refreshed" column reflects
+        the run that just happened. Previously these timestamps were only read
+        while building the list in display_clients(), which nothing re-ran after
+        processing - so the column kept showing the state from before the run
+        until the user manually re-scanned.
+
+        Updates the labels in place rather than re-scanning, which keeps the
+        user's ITC/Sales tick selections intact.
+        """
+        for data in self.client_vars.values():
+            label = data.get('status_label')
+            if label is None:
+                continue
+            itc_status, sales_status = self.get_refresh_status(data['data'])
+            data['itc_status'] = itc_status
+            data['sales_status'] = sales_status
+            try:
+                label.config(
+                    text=self.format_refresh_status(itc_status, sales_status))
+            except tk.TclError:
+                pass    # row was destroyed (e.g. a re-scan happened meanwhile)
+
     def get_refresh_status(self, client):
         """Get last refresh status from existing files (single directory listing)"""
         try:
@@ -891,9 +919,15 @@ class PowerQueryExtractorApp(tk.Tk):
                 logger.error(f"Could not open report {report_path}: {e}")
 
     def _reset_after_processing(self):
-        """Restore the controls once processing ends (UI thread only)."""
+        """Restore the controls once processing ends (UI thread only).
+
+        Also re-reads the per-client refresh timestamps so the list shows the run
+        that just finished. Runs from the finally block, so partial results after
+        an error are reflected too.
+        """
         self.process_btn.config(state='normal')
         self._apply_progress(0, "Ready")
+        self.refresh_status_display()
     
     # ------------------------------------------------------------------ UI marshalling
     def _ui(self, func, *args, **kwargs):
