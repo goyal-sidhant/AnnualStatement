@@ -47,6 +47,32 @@ class TestSanitizeFilename:
     def test_abbreviation_is_case_insensitive(self):
         assert sanitize_filename("ABC PRIVATE LIMITED") == "ABC_Pvt_Ltd"
 
+    @pytest.mark.parametrize("name", [
+        "ABC Private Limited",     # spaces
+        "ABC_Private_Limited",     # underscores - '_' is a \w char, so the
+                                   # separators must be normalised before \b
+                                   # matching or this stays full-length
+        "ABC-Private-Limited",     # hyphens
+        "ABC  Private   Limited",  # repeated whitespace
+    ])
+    def test_abbreviates_regardless_of_separator(self, name):
+        """Separator style must not change whether abbreviation happens.
+
+        Path length matters here (Excel's ~218 char limit) and the app's own
+        filename patterns forbid hyphens in client names, so underscores are a
+        realistic way users write these.
+        """
+        result = sanitize_filename(name)
+        assert "Pvt" in result and "Ltd" in result
+        assert "Private" not in result and "Limited" not in result
+
+    def test_run_together_name_is_left_alone(self):
+        # NOTE: with no separator at all there is no reliable way to tell
+        # 'ABCPrivateLimited' (should abbreviate) from 'Privateer' (must not),
+        # so run-together names keep their full length. Pinned as known
+        # behaviour, not an endorsement.
+        assert sanitize_filename("ABCPrivateLimited") == "ABCPrivateLimited"
+
     def test_long_name_is_truncated_within_limit(self):
         result = sanitize_filename("x" * 250 + ".xlsx")
         assert result == "x" * 185 + ".xlsx"

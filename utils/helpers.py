@@ -75,10 +75,19 @@ def sanitize_filename(filename: str, max_length: int = 200) -> str:
     base_name = Path(filename).stem
     extension = Path(filename).suffix
     
-    # Apply business abbreviations FIRST. Use word-boundary, case-insensitive
-    # matching (same as create_client_state_key) so 'ABC PRIVATE LIMITED'
-    # abbreviates correctly and words that merely CONTAIN these (e.g.
-    # 'Privateer', 'Unlimited') are not mangled.
+    # Apply business abbreviations FIRST.
+    #
+    # Normalise separators to spaces before matching: '_' is a word character,
+    # so \b does NOT match around it and 'ABC_Private_Limited' would otherwise
+    # keep its full length (+8 chars on every path that embeds it - a real
+    # concern against Excel's ~218 char path limit). The [\s_]+ -> '_' collapse
+    # further down re-applies underscore separators, so the final result is
+    # unchanged for names without these words.
+    #
+    # Word-boundary + case-insensitive matching then abbreviates
+    # 'ABC PRIVATE LIMITED' correctly while leaving words that merely CONTAIN
+    # these alone ('Privateer', 'Unlimited').
+    base_name = re.sub(r'[\s_]+', ' ', base_name)
     base_name = re.sub(r'\bPrivate\b', 'Pvt', base_name, flags=re.IGNORECASE)
     base_name = re.sub(r'\bLimited\b', 'Ltd', base_name, flags=re.IGNORECASE)
     
