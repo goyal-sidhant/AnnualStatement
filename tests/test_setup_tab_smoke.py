@@ -59,11 +59,23 @@ class FakeApp:
 
 @pytest.fixture
 def built(root):
+    """Build the tab and actually lay it out.
+
+    The widgets must be packed and updated, otherwise the canvas has a height of
+    1px and anything that depends on real geometry (yview, scrolling) is
+    meaningless.
+    """
+    root.geometry('900x600')
     notebook = tk.Frame(root)          # ttk.Notebook not required; .add is
     notebook.add = lambda *a, **k: None
+    notebook.pack(fill='both', expand=True)
     app = FakeApp(root)
     tab = SetupTab(notebook, app)
-    return tab, app
+    tab.tab_frame.pack(fill='both', expand=True)
+    root.update()
+    yield tab, app
+    notebook.destroy()
+    root.update_idletasks()
 
 
 def test_tab_builds_without_error(built):
@@ -129,3 +141,83 @@ def test_length_hint_uses_the_configured_limit(built):
     app.client_name_max_length.set(50)
     tab._update_length_hint()
     assert '50' in tab.length_hint['text']
+
+
+class FakeWheel:
+    """Stand-in for a Tk MouseWheel event."""
+    def __init__(self, widget, delta):
+        self.widget = widget
+        self.delta = delta
+
+
+def _make_scrollable(tab, root):
+    """Ensure the scrollregion covers the (taller-than-viewport) content."""
+    tab._canvas.configure(scrollregion=tab._canvas.bbox('all'))
+    root.update_idletasks()
+    first, last = tab._canvas.yview()
+    assert last < 1.0, "content should overflow the viewport for these tests"
+
+
+def _deep_child(tab):
+    """A widget nested inside the scroll area (a checklist label)."""
+    return tab._rows['source']['detail']
+
+
+class TestScrolling:
+    def test_wheel_over_a_child_widget_scrolls(self, built, root):
+        """Regression: <Leave> fires on a container when the pointer moves onto
+        its children, so an Enter/Leave binding switched scrolling off over the
+        cards - i.e. over most of the tab."""
+        tab, app = built
+        _make_scrollable(tab, root)
+        child = _deep_child(tab)
+        assert tab._is_in_scroll_area(child)
+
+        before = tab._canvas.yview()[0]
+        tab._on_mousewheel(FakeWheel(child, -120))
+        root.update_idletasks()
+        assert tab._canvas.yview()[0] > before
+
+    def test_small_delta_still_scrolls(self, built, root):
+        """Regression: int(delta/120) truncates a precision touchpad's small
+        deltas to 0, making the wheel look dead. Deltas must accumulate."""
+        tab, app = built
+        _make_scrollable(tab, root)
+        child = _deep_child(tab)
+
+        before = tab._canvas.yview()[0]
+        for _ in range(6):                       # 6 x 40 == two full notches
+            tab._on_mousewheel(FakeWheel(child, -40))
+        root.update_idletasks()
+        assert tab._canvas.yview()[0] > before
+
+    def test_wheel_outside_the_tab_is_ignored(self, built, root):
+        """The binding is application-level, so it must not steal wheel events
+        belonging to other widgets."""
+        tab, app = built
+        _make_scrollable(tab, root)
+        outsider = tk.Label(root, text='elsewhere')
+
+        assert tab._is_in_scroll_area(outsider) is False
+        before = tab._canvas.yview()[0]
+        assert tab._on_mousewheel(FakeWheel(outsider, -120)) is None
+        root.update_idletasks()
+        assert tab._canvas.yview()[0] == before
+        outsider.destroy()
+
+    def test_no_scroll_when_everything_fits(self, built, root):
+        """With nothing to scroll the handler must not swallow the event."""
+        tab, app = built
+        # A scrollregion shorter than the viewport => nothing to scroll.
+        tab._canvas.configure(scrollregion=(0, 0, 800, 50))
+        root.update_idletasks()
+        assert tab._canvas.yview()[1] >= 1.0
+
+        assert tab._on_mousewheel(FakeWheel(_deep_child(tab), -120)) is None
+
+    def test_scrolling_up_at_the_top_stays_put(self, built, root):
+        tab, app = built
+        _make_scrollable(tab, root)
+        tab._on_mousewheel(FakeWheel(_deep_child(tab), 120))   # wheel up
+        root.update_idletasks()
+        assert tab._canvas.yview()[0] == 0.0

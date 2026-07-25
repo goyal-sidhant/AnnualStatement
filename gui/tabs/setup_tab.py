@@ -40,6 +40,9 @@ CARD_BORDER = '#DADCE0'
 
 REVALIDATE_DELAY_MS = 350   # debounce: avoid stat'ing a UNC path on every keystroke
 
+SCROLL_STEP_PX = 22         # pixels per scroll unit
+SCROLL_UNITS_PER_NOTCH = 3  # a wheel notch moves 3 units (~= 3 text lines)
+
 
 class SetupTab:
     """Setup tab for folder and template selection"""
@@ -51,6 +54,8 @@ class SetupTab:
         self._path_tooltips = {}   # key -> Tooltip for the entry
         self._revalidate_job = None
         self._exists_cache = {}
+        self._canvas = None
+        self._wheel_accum = 0.0
         self.create_tab()
         self._attach_traces()
         self.refresh_status(force=True)
@@ -84,13 +89,60 @@ class SetupTab:
         canvas.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
 
-        # Scroll only while the pointer is over this tab, instead of bind_all
-        # which would hijack the wheel for the whole application.
-        def _wheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
-        for w in (canvas, scrollable):
-            w.bind('<Enter>', lambda e: canvas.bind_all('<MouseWheel>', _wheel), add='+')
-            w.bind('<Leave>', lambda e: canvas.unbind_all('<MouseWheel>'), add='+')
+        self._canvas = canvas
+        # A predictable step size: without this, 'units' scrolling depends on an
+        # implementation-defined default and feels inconsistent.
+        canvas.configure(yscrollincrement=SCROLL_STEP_PX)
+
+        # Single application-level binding, filtered by whether the pointer is
+        # actually inside this tab (see _on_mousewheel).
+        #
+        # NOT Enter/Leave on the canvas: Tk delivers <Leave> to a container when
+        # the pointer moves onto one of its CHILDREN, so an Enter/Leave pair
+        # would switch scrolling off over the cards - i.e. over almost the whole
+        # tab. And NOT unbind_all, which would drop every other widget's
+        # application-level wheel binding too.
+        canvas.bind_all('<MouseWheel>', self._on_mousewheel, add='+')
+
+    # --------------------------------------------------------------- scrolling
+    def _is_in_scroll_area(self, widget):
+        """True if `widget` is the scroll canvas or a descendant of it."""
+        node = widget
+        while node is not None:
+            if node is self._canvas:
+                return True
+            node = getattr(node, 'master', None)
+        return False
+
+    def _on_mousewheel(self, event):
+        canvas = self._canvas
+        if canvas is None:
+            return None
+        try:
+            if not canvas.winfo_exists():
+                return None
+        except tk.TclError:
+            return None
+
+        # Application-level binding: ignore wheel events aimed at other tabs or
+        # at widgets that scroll themselves (the log box, comboboxes, ...).
+        if not self._is_in_scroll_area(event.widget):
+            return None
+
+        # Nothing to scroll - let the event through rather than swallowing it.
+        first, last = canvas.yview()
+        if first <= 0.0 and last >= 1.0:
+            return None
+
+        # Accumulate fractional notches. High-resolution wheels and precision
+        # touchpads send deltas smaller than 120, which int(delta/120) would
+        # truncate to 0 - making the wheel appear dead.
+        self._wheel_accum += -event.delta / 120.0 * SCROLL_UNITS_PER_NOTCH
+        steps = int(self._wheel_accum)
+        if steps:
+            self._wheel_accum -= steps
+            canvas.yview_scroll(steps, 'units')
+        return 'break'
 
     def _accent_card(self, parent, accent, pady=(0, 12)):
         """A white card with a coloured accent bar down its left edge."""
