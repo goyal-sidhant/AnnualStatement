@@ -864,38 +864,76 @@ class PowerQueryExtractorApp(tk.Tk):
             self.log_message(f"\n✅ Processing complete!", 'success')
             self.log_message(f"📄 Report saved: {report_path.name}", 'success')
             self.log_message(f"📂 Location: {report_path.parent}", 'info')
-            
-            self.status_var.set("Processing complete")
-            
-            # Ask to open report
-            if messagebox.askyesno("Complete", "Processing complete!\n\nOpen the consolidated report?"):
-                import os
-                os.startfile(report_path)
-            
+
+            self._ui(self.status_var.set, "Processing complete")
+
+            # Ask to open report - a modal dialog must be raised on the UI thread
+            self._ui(self._offer_to_open_report, report_path)
+
         except Exception as e:
             self.log_message(f"\n❌ Error: {e}", 'error')
             logger.error(f"Processing error: {e}", exc_info=True)
-            messagebox.showerror("Error", f"Processing failed: {e}")
+            self._ui(messagebox.showerror, "Error", f"Processing failed: {e}")
         finally:
             self.is_processing = False
-            self.process_btn.config(state='normal')
-            self.update_progress(0, "Ready")
+            self._ui(self._reset_after_processing)
 
             # Cleanup Excel instance
             self.processor.cleanup()
+
+    def _offer_to_open_report(self, report_path):
+        """Ask whether to open the consolidated report (UI thread only)."""
+        if messagebox.askyesno("Complete",
+                               "Processing complete!\n\nOpen the consolidated report?"):
+            try:
+                os.startfile(report_path)
+            except Exception as e:
+                logger.error(f"Could not open report {report_path}: {e}")
+
+    def _reset_after_processing(self):
+        """Restore the controls once processing ends (UI thread only)."""
+        self.process_btn.config(state='normal')
+        self._apply_progress(0, "Ready")
     
+    # ------------------------------------------------------------------ UI marshalling
+    def _ui(self, func, *args, **kwargs):
+        """Run `func` on the Tk main thread.
+
+        Processing runs on a worker thread, and Tk is not thread-safe: touching
+        widgets (or calling update_idletasks) from another thread causes
+        intermittent freezes and crashes. Every worker-thread UI update goes
+        through here. Arguments are bound now, so the values logged are the ones
+        that were current when the call was made, not when it is drawn.
+
+        `after` is available on both a Tk root and a Frame, so this keeps working
+        when the panel is embedded in the main window.
+        """
+        try:
+            self.after(0, lambda: func(*args, **kwargs))
+        except (tk.TclError, RuntimeError):
+            # TclError: the window has already been destroyed.
+            # RuntimeError: "main thread is not in main loop" - raised if the
+            # event loop is not running (shutting down, or driven manually).
+            # Either way there is no UI left to update, and a failed status
+            # update must never kill the worker thread: that would skip the
+            # cleanup in its finally block and leak an Excel instance.
+            pass
+
     def update_progress(self, value, message):
-        """Update progress bar and label"""
+        """Update progress bar and label (safe from any thread)"""
+        self._ui(self._apply_progress, value, message)
+
+    def _apply_progress(self, value, message):
         self.progress_var.set(value)
         self.progress_label.config(text=message)
         self.status_var.set(message)
-        self.update_idletasks()
-    
+
     def log_message(self, message, level='info'):
-        """Add message to log"""
+        """Add message to log (safe from any thread)"""
+        # Timestamp is taken now, when the event happened, not when it is drawn.
         timestamp = datetime.now().strftime("%H:%M:%S")
-        
-        # Insert message with timestamp
-        self.log_text.insert('end', f"[{timestamp}] {message}\n", level)
+        self._ui(self._append_log, f"[{timestamp}] {message}\n", level)
+
+    def _append_log(self, text, level):
+        self.log_text.insert('end', text, level)
         self.log_text.see('end')
-        self.update_idletasks()
