@@ -125,14 +125,26 @@ def sanitize_filename(filename: str, max_length: int = 200) -> str:
     return safe_name
 
 
-def get_file_info(file_path: Union[str, Path]) -> Dict[str, Any]:
-    """Get comprehensive file information"""
+def get_file_info(file_path: Union[str, Path],
+                  stat_result: Optional[os.stat_result] = None) -> Dict[str, Any]:
+    """Get comprehensive file information.
+
+    Args:
+        file_path: Path to the file
+        stat_result: Optional pre-obtained stat. Pass the cached stat from an
+            os.scandir() DirEntry to avoid re-asking the filesystem - on a
+            network share the exists() + stat() below are two separate
+            round-trips, while DirEntry.stat() is served from the directory
+            listing at no extra cost.
+    """
     try:
         path = Path(file_path)
-        if not path.exists():
-            return {'error': 'File not found'}
-        
-        stat = path.stat()
+        stat = stat_result
+        if stat is None:
+            if not path.exists():
+                return {'error': 'File not found'}
+            stat = path.stat()
+
         return {
             'name': path.name,
             'path': str(path.absolute()),
@@ -224,31 +236,42 @@ def create_backup(file_path: Union[str, Path]) -> Optional[Path]:
 # Excel Validation
 # ============================================================================
 
-def validate_excel_file(file_path: Union[str, Path]) -> bool:
+def validate_excel_file(file_path: Union[str, Path],
+                        stat_result: Optional[os.stat_result] = None) -> bool:
     """
     Validate if file is a genuine Excel file.
-    
+
     Args:
         file_path: Path to file
-        
+        stat_result: Optional pre-obtained stat. Pass the cached stat from an
+            os.scandir() DirEntry to skip the exists()/is_file()/stat() calls
+            below - three separate round-trips on a network share, versus zero
+            extra cost for metadata the directory listing already returned.
+
     Returns:
         bool: True if valid Excel file
     """
     try:
         path = Path(file_path)
-        
-        # Check existence
-        if not path.exists() or not path.is_file():
+
+        if stat_result is None:
+            # Check existence
+            if not path.exists() or not path.is_file():
+                return False
+        elif not S_ISREG(stat_result.st_mode):
+            # Same rejection as the is_file() check above (e.g. a directory
+            # named '*.xlsx'), derived from the cached stat.
             return False
-        
+
         # Check extension
         if path.suffix.lower() not in {'.xlsx', '.xls', '.xlsm', '.xltx', '.xltm'}:
             return False
-        
+
         # Check file size (too small = probably corrupted)
-        if path.stat().st_size < 1024:  # Less than 1KB
+        size = stat_result.st_size if stat_result is not None else path.stat().st_size
+        if size < 1024:  # Less than 1KB
             return False
-        
+
         # Check file signature
         with open(path, 'rb') as f:
             header = f.read(8)
@@ -263,30 +286,54 @@ def validate_excel_file(file_path: Union[str, Path]) -> bool:
         logger.error(f"Error validating Excel file {file_path}: {e}")
         return False
 
-def find_excel_files(folder: Union[str, Path]) -> List[Path]:
-    """Find all Excel files in folder"""
+def scan_excel_files(folder: Union[str, Path]) -> List[Tuple[Path, os.stat_result]]:
+    """Find all valid Excel files in folder, returning each with its cached stat.
+
+    Enumerates the directory ONCE with os.scandir and reuses each DirEntry's
+    cached stat for validation, so the only per-file network round-trip left is
+    the 8-byte signature read. Callers that need size/mtime (e.g. get_file_info)
+    should pass the returned stat back in rather than re-stat'ing the path.
+
+    Returns:
+        List of (path, stat) tuples, sorted by path - same order as
+        find_excel_files().
+    """
     try:
         folder_path = Path(folder)
-        excel_files = []
+        candidates = []
 
-        # Enumerate the directory ONCE with os.scandir instead of three separate
-        # glob() passes (each glob is a full directory listing - expensive on a
-        # network share). str.endswith on the lower-cased name reproduces the old
-        # patterns '*.xlsx'/'*.xls'/'*.xlsm', which are case-insensitive on Windows.
+        # str.endswith on the lower-cased name reproduces the original
+        # '*.xlsx'/'*.xls'/'*.xlsm' globs, which are case-insensitive on Windows.
         excel_extensions = ('.xlsx', '.xls', '.xlsm')
         with os.scandir(folder_path) as entries:
             for entry in entries:
-                if entry.name.lower().endswith(excel_extensions):
-                    excel_files.append(Path(entry.path))
+                if not entry.name.lower().endswith(excel_extensions):
+                    continue
+                try:
+                    # Free on Windows - served from the directory listing.
+                    st = entry.stat()
+                except OSError:
+                    # Vanished/unreadable between listing and stat; the old code
+                    # rejected these via the exists() check.
+                    continue
+                candidates.append((Path(entry.path), st))
 
-        # Filter valid Excel files only
-        valid_files = [f for f in excel_files if validate_excel_file(f)]
+        # Filter valid Excel files only, reusing the cached stat.
+        valid = [(p, st) for p, st in candidates if validate_excel_file(p, st)]
 
-        return sorted(valid_files)
-        
+        return sorted(valid, key=lambda pair: pair[0])
+
     except Exception as e:
         logger.error(f"Error finding Excel files in {folder}: {e}")
         return []
+
+
+def find_excel_files(folder: Union[str, Path]) -> List[Path]:
+    """Find all Excel files in folder (paths only).
+
+    Thin wrapper over scan_excel_files() for callers that don't need the stat.
+    """
+    return [path for path, _stat in scan_excel_files(folder)]
 
 # ============================================================================
 # String and Display Functions

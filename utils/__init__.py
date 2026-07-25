@@ -13,7 +13,7 @@ from .helpers import (
     get_timestamp, get_date_only, get_safe_timestamp,
     ensure_path_exists, safe_path_join, sanitize_filename,
     get_file_info, safe_copy_file, create_backup,
-    validate_excel_file, find_excel_files, format_size,
+    validate_excel_file, find_excel_files, scan_excel_files, format_size,
     truncate_path, clean_windows_path, extract_filename_without_extension,
     validate_client_name, get_unique_path, ProgressTracker,
     format_duration, calculate_file_hash, get_relative_excel_path
@@ -29,7 +29,7 @@ __all__ = [
     'get_timestamp', 'get_date_only', 'get_safe_timestamp',
     'ensure_path_exists', 'safe_path_join', 'sanitize_filename',
     'get_file_info', 'safe_copy_file', 'create_backup',
-    'validate_excel_file', 'find_excel_files', 'format_size',
+    'validate_excel_file', 'find_excel_files', 'scan_excel_files', 'format_size',
     'truncate_path', 'clean_windows_path', 'extract_filename_without_extension',
     'validate_client_name', 'get_unique_path', 'ProgressTracker',
     'format_duration', 'calculate_file_hash', 'get_relative_excel_path'

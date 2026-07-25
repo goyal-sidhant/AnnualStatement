@@ -11,9 +11,8 @@ from collections import defaultdict
 
 from utils.constants import FILE_PATTERNS, EXPECTED_FILE_TYPES
 from utils.helpers import (
-    validate_excel_file, get_file_info, find_excel_files,
-    validate_client_name, format_size, get_state_code  # ADD THIS
-    
+    get_file_info, scan_excel_files,
+    validate_client_name, format_size, get_state_code
 )
 
 logger = logging.getLogger(__name__)
@@ -154,17 +153,18 @@ class FileParser:
                 raise FileNotFoundError(f"Folder not found: {folder}")
             if not folder.is_dir():
                 raise ValueError(f"Not a directory: {folder}")
-            # Find all Excel files
-            excel_files = find_excel_files(folder)
+            # Find all Excel files, keeping each one's cached stat so
+            # _process_file does not have to re-query the filesystem.
+            excel_files = scan_excel_files(folder)
             if not excel_files:
                 logger.warning(f"No Excel files found in {folder}")
                 return self.scanned_files, dict(self.client_data), self.variations
             total_files = len(excel_files)
             logger.info(f"Found {total_files} Excel files to process")
             # Process each file
-            for idx, file_path in enumerate(excel_files):
+            for idx, (file_path, file_stat) in enumerate(excel_files):
                 self._update_progress(idx + 1, total_files, f"Processing {file_path.name}")
-                self._process_file(file_path, folder)
+                self._process_file(file_path, folder, file_stat)
             # Analyze completeness
             self._analyze_client_completeness()
             # Log summary
@@ -176,14 +176,19 @@ class FileParser:
             self.errors.append(str(e))
             raise
     
-    def _process_file(self, file_path: Path, base_folder: Path):
-        """Process a single file"""
+    def _process_file(self, file_path: Path, base_folder: Path, file_stat=None):
+        """Process a single file.
+
+        Args:
+            file_stat: cached stat from scan_excel_files, passed through to
+                get_file_info so no extra filesystem round-trip is needed.
+        """
         try:
-            # Get file info
-            file_info = get_file_info(file_path)
+            # Get file info (reuses the stat from the directory listing)
+            file_info = get_file_info(file_path, file_stat)
 
             # NOTE: We do NOT re-validate here. Every file reaching _process_file
-            # came from find_excel_files(), which already ran validate_excel_file()
+            # came from scan_excel_files(), which already ran validate_excel_file()
             # on it. Re-validating opened + stat'd each file a second time - a
             # redundant round-trip per file on network shares.
 

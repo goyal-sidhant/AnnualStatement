@@ -5,7 +5,11 @@ files on disk (pytest tmp_path). These are the functions optimised for network
 paths, so pinning their behaviour guards against a refactor changing which
 files are considered valid or discovered.
 """
-from utils.helpers import validate_excel_file, find_excel_files, get_file_info
+import os
+
+from utils.helpers import (
+    validate_excel_file, find_excel_files, get_file_info, scan_excel_files,
+)
 
 OLE_SIG = b"\xd0\xcf\x11\xe0"   # .xls (OLE-based) signature
 
@@ -67,6 +71,58 @@ class TestFindExcelFiles:
 
     def test_empty_folder_returns_empty_list(self, tmp_path):
         assert find_excel_files(tmp_path) == []
+
+
+class TestScanExcelFiles:
+    """scan_excel_files returns (path, stat) so callers can avoid re-stat'ing.
+
+    Its results must match find_excel_files exactly - the only difference is
+    that the cached stat comes along for the ride.
+    """
+
+    def test_matches_find_excel_files(self, tmp_path, make_excel):
+        make_excel(tmp_path / "GSTR3B-ABC-DL-Jan.xlsx")
+        make_excel(tmp_path / "Sales-ABC-DL-Apr-Jun.xls", header=OLE_SIG)
+        make_excel(tmp_path / "tiny.xlsx", size=500)       # invalid
+        make_excel(tmp_path / "fake.xlsx", header=b"NO")   # invalid
+        (tmp_path / "looks.xlsx").mkdir()                  # directory
+
+        pairs = scan_excel_files(tmp_path)
+        assert [p for p, _ in pairs] == find_excel_files(tmp_path)
+
+    def test_returns_usable_stat(self, tmp_path, make_excel):
+        make_excel(tmp_path / "a.xlsx", size=4096)
+        (path, st) = scan_excel_files(tmp_path)[0]
+        assert isinstance(st, os.stat_result)
+        assert st.st_size == 4096 == path.stat().st_size
+
+    def test_rejects_directory_via_cached_stat(self, tmp_path):
+        (tmp_path / "adir.xlsx").mkdir()
+        assert scan_excel_files(tmp_path) == []
+
+    def test_empty_folder(self, tmp_path):
+        assert scan_excel_files(tmp_path) == []
+
+    def test_missing_folder_returns_empty(self, tmp_path):
+        assert scan_excel_files(tmp_path / "nope") == []
+
+
+class TestCachedStatEquivalence:
+    """Passing a pre-obtained stat must not change the outcome."""
+
+    def test_validate_same_with_and_without_stat(self, tmp_path, make_excel):
+        cases = [
+            make_excel(tmp_path / "good.xlsx"),
+            make_excel(tmp_path / "small.xlsx", size=500),
+            make_excel(tmp_path / "bad.xlsx", header=b"NOPE"),
+            make_excel(tmp_path / "notes.txt"),
+        ]
+        for p in cases:
+            assert validate_excel_file(p) == validate_excel_file(p, p.stat()), p.name
+
+    def test_get_file_info_same_with_and_without_stat(self, tmp_path, make_excel):
+        p = make_excel(tmp_path / "a.xlsx", size=3072)
+        assert get_file_info(p) == get_file_info(p, p.stat())
 
 
 class TestGetFileInfo:
