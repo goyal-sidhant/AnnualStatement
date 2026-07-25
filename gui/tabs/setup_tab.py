@@ -1,377 +1,398 @@
 # gui/tabs/setup_tab.py
-"""Setup Tab - Step 1 of GST File Organizer"""
+"""Setup Tab - Step 1 of GST File Organizer.
+
+Shows a live readiness checklist: each required input reports its own state as
+you pick it, and the Scan button enables itself as soon as the source folder is
+valid (scanning does not need the templates - those gate Step 3).
+
+Validation logic lives in gui/utils/setup_validation.py so it can be tested
+without Tkinter. Existence checks are debounced and cached because on a network
+share each one is a real round-trip.
+"""
 
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk
-from utils.constants import GUI_CONFIG, PROCESSING_MODES
-from ..widgets.collapsible_frame import CollapsibleFrame
+
+from utils.constants import FILE_PATTERNS, GUI_CONFIG, PROCESSING_MODES
 from ..utils.ui_helpers import UIHelpers
+from ..utils import setup_validation as sv
+from ..widgets.tooltip import Tooltip
+
+COLORS = GUI_CONFIG['colors']
+
+# Per-state presentation for a checklist row: icon, text colour, row tint
+STATE_STYLE = {
+    sv.OK:      ('✓', COLORS['success'], '#E8F5E8'),
+    sv.MISSING: ('○', '#8A8F98', '#F1F3F4'),
+    sv.INVALID: ('✕', COLORS['danger'], '#FDECEA'),
+}
+
+# Accent colour + emoji per input, so each row is visually distinct
+INPUT_ACCENT = {
+    'source': (COLORS['success'], '📂'),
+    'itc':    (COLORS['primary'], '📊'),
+    'sales':  (COLORS['info'], '💰'),
+    'target': (COLORS['warning'], '🎯'),
+}
+
+CARD_BORDER = '#DADCE0'
+
+REVALIDATE_DELAY_MS = 350   # debounce: avoid stat'ing a UNC path on every keystroke
 
 
 class SetupTab:
     """Setup tab for folder and template selection"""
-    
+
     def __init__(self, notebook, app_instance):
         self.app = app_instance
         self.notebook = notebook
+        self._rows = {}            # key -> dict of row widgets
+        self._path_tooltips = {}   # key -> Tooltip for the entry
+        self._revalidate_job = None
+        self._exists_cache = {}
         self.create_tab()
-    
+        self._attach_traces()
+        self.refresh_status(force=True)
+
+    # ------------------------------------------------------------------ setup
     def create_tab(self):
-        """Create setup tab with working mouse events"""
         self.tab_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_frame, text="📁 Step 1: Setup")
-        
-        # Create scrollable frame
-        canvas = tk.Canvas(self.tab_frame, bg=GUI_CONFIG['colors']['light'])
+
+        canvas = tk.Canvas(self.tab_frame, bg=COLORS['light'], highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.tab_frame, orient='vertical', command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg=GUI_CONFIG['colors']['light'])
-        
-        scrollable_frame.bind('<Configure>',
-                             lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
+        scrollable = tk.Frame(canvas, bg=COLORS['light'])
+
+        scrollable.bind('<Configure>',
+                        lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        window_id = canvas.create_window((0, 0), window=scrollable, anchor='nw')
+        canvas.bind('<Configure>',
+                    lambda e: canvas.itemconfigure(window_id, width=e.width))
         canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Create two-column layout
-        main_container = tk.Frame(scrollable_frame, bg=GUI_CONFIG['colors']['light'])
-        main_container.pack(fill='both', expand=True, padx=20, pady=20)
-        
-        # Left column (60%)
-        left_column = tk.Frame(main_container, bg=GUI_CONFIG['colors']['light'])
-        left_column.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        
-        # Right column (40%)
-        right_column = tk.Frame(main_container, bg=GUI_CONFIG['colors']['light'], width=400)
-        right_column.pack(side='right', fill='y', padx=(10, 0))
-        right_column.pack_propagate(False)
-        
-        # Create sections in left column
-        self.create_welcome_section(left_column)
-        self.create_source_folder_section(left_column)
-        self.create_templates_section(left_column)
-        self.create_target_folder_section(left_column)
-        self.create_processing_mode_section(left_column)
-        self.create_action_buttons_section(left_column)
-        
-        # Create help section in right column
-        self.create_help_section(right_column)
-        
-        # Pack canvas and scrollbar
+
+        body = tk.Frame(scrollable, bg=COLORS['light'])
+        body.pack(fill='both', expand=True, padx=20, pady=16)
+
+        self._create_header(body)
+        self._create_checklist(body)
+        self._create_inputs(body)
+        self._create_options(body)
+        self._create_actions(body)
+        self._create_reference(body)
+
         canvas.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
-        
-        # Bind mouse wheel to canvas
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-    
-    def create_welcome_section(self, parent):
-        """Create welcome section"""
-        colors = GUI_CONFIG['colors']
-        
-        frame = tk.Frame(parent, bg='white', relief='solid', borderwidth=2)
-        frame.pack(fill='x', pady=(0, 15))
-        
-        tk.Label(frame,
-                text="🎉 Welcome to GST File Organizer!",
-                font=('Arial', 14, 'bold'),
-                bg='white',
-                fg=colors['primary']).pack(pady=(15, 5))
-        
-        tk.Label(frame,
-                text="This tool will help you organize GST files and create Excel reports automatically.\nLet's get started!",
-                font=('Arial', 10),
-                bg='white',
-                fg=colors['dark'],
-                justify='center').pack(pady=(0, 15))
-    
-    def create_source_folder_section(self, parent):
-        """Create source folder selection with working browse button"""
-        section = UIHelpers.create_colored_section(
-            parent, "📂 SOURCE FOLDER", 
-            "Select the folder containing your GST Excel files",
-            GUI_CONFIG['colors']['success']
-        )
-        
-        input_frame = tk.Frame(section, bg='white')
-        input_frame.pack(fill='x', padx=15, pady=10)
-        
-        entry = tk.Entry(input_frame, textvariable=self.app.source_folder,
-                        font=('Arial', 10), relief='solid', borderwidth=1)
-        entry.pack(side='left', fill='x', expand=True, ipady=5)
-        
-        # Create button with proper event binding
-        browse_btn = tk.Button(input_frame, text="📂 Browse",
-                              font=('Arial', 10, 'bold'),
-                              bg=GUI_CONFIG['colors']['success'], 
-                              fg='white',
-                              relief='flat', 
-                              padx=15, 
-                              pady=5,
-                              cursor='hand2')
-        browse_btn.pack(side='right', padx=(10, 0))
-        
-        # Bind click event
-        browse_btn.bind('<Button-1>', lambda e: self.app.browse_source_folder())
-    
-    def create_templates_section(self, parent):
-        """Create templates selection section with working browse buttons"""
-        section = UIHelpers.create_colored_section(
-            parent, "📋 EXCEL TEMPLATES",
-            "Select your Excel template files (.xlsx or .xltx)",
-            GUI_CONFIG['colors']['primary']
-        )
-        
-        # ITC Template
-        self.create_template_input(section, "ITC Report Template:",
-                                 self.app.itc_template, self.app.browse_itc_template)
-        
-        # Sales Template
-        self.create_template_input(section, "Sales Report Template:",
-                                 self.app.sales_template, self.app.browse_sales_template)
-    
-    def create_template_input(self, parent, label, variable, command):
-        """Create template input field with working browse button"""
-        frame = tk.Frame(parent, bg='white')
-        frame.pack(fill='x', padx=15, pady=5)
-        
-        tk.Label(frame, text=label,
-                font=('Arial', 10, 'bold'),
-                bg='white').pack(anchor='w')
-        
-        input_frame = tk.Frame(frame, bg='white')
-        input_frame.pack(fill='x', pady=(5, 0))
-        
-        entry = tk.Entry(input_frame, textvariable=variable,
-                        font=('Arial', 10), relief='solid', borderwidth=1)
-        entry.pack(side='left', fill='x', expand=True, ipady=5)
-        
-        # Create button with proper event binding
-        browse_btn = tk.Button(input_frame, text="📋 Browse",
-                              font=('Arial', 9, 'bold'),
-                              bg=GUI_CONFIG['colors']['primary'], 
-                              fg='white',
-                              relief='flat', 
-                              padx=12, 
-                              pady=5,
-                              cursor='hand2')
-        browse_btn.pack(side='right', padx=(10, 0))
-        
-        # Bind click event
-        browse_btn.bind('<Button-1>', lambda e: command())
-    
-    def create_target_folder_section(self, parent):
-        """Create target folder section with working browse button"""
-        section = UIHelpers.create_colored_section(
-            parent, "🎯 TARGET FOLDER ⭐ IMPORTANT!",
-            "⚠️ Select where the organized files will be saved",
-            GUI_CONFIG['colors']['danger']
-        )
-        
-        # Add emphasis frame
-        emphasis_frame = tk.Frame(section, bg='#FFEBEE', relief='solid', borderwidth=1)
-        emphasis_frame.pack(fill='x', padx=15, pady=(0, 10))
-        
-        tk.Label(emphasis_frame,
-                text="🚨 This is where your organized files will be created!",
-                font=('Arial', 10, 'bold'),
-                bg='#FFEBEE', fg='#C62828').pack(pady=5)
-        
-        input_frame = tk.Frame(section, bg='white')
-        input_frame.pack(fill='x', padx=15, pady=10)
-        
-        entry = tk.Entry(input_frame, textvariable=self.app.target_folder,
-                        font=('Arial', 10), relief='solid', borderwidth=2)
-        entry.pack(side='left', fill='x', expand=True, ipady=8)
-        
-        # Create button with proper event binding
-        browse_btn = tk.Button(input_frame, text="🎯 BROWSE",
-                              font=('Arial', 10, 'bold'),
-                              bg=GUI_CONFIG['colors']['danger'], 
-                              fg='white',
-                              relief='flat', 
-                              padx=20, 
-                              pady=8,
-                              cursor='hand2')
-        browse_btn.pack(side='right', padx=(10, 0))
-        
-        # Bind click event
-        browse_btn.bind('<Button-1>', lambda e: self.app.browse_target_folder())
-    
-    def create_processing_mode_section(self, parent):
-        """Create processing mode selection"""
-        section = UIHelpers.create_colored_section(
-            parent, "⚙️ PROCESSING MODE",
-            "Choose how to organize files",
-            GUI_CONFIG['colors']['info']
-        )
-        
-        mode_frame = tk.Frame(section, bg='white')
-        mode_frame.pack(fill='x', padx=15, pady=10)
-        
-        for mode_key, mode_info in PROCESSING_MODES.items():
-            radio_frame = tk.Frame(mode_frame, bg='white')
-            radio_frame.pack(fill='x', pady=3)
-            
-            tk.Radiobutton(radio_frame, text=mode_info['name'],
-                          variable=self.app.processing_mode, value=mode_key,
-                          font=('Arial', 10, 'bold'),
-                          bg='white', fg=GUI_CONFIG['colors']['dark']).pack(anchor='w')
-            
-            tk.Label(radio_frame, text=f"   {mode_info['description']}",
-                    font=('Arial', 9),
-                    bg='white', fg='gray').pack(anchor='w')
-        
-        # Folder options
-        options_frame = tk.Frame(mode_frame, bg='white')
-        options_frame.pack(fill='x', pady=10)
 
-        self.app.client_name_check = tk.Checkbutton(options_frame,
-                                   text="Include client name in brackets for Level 4 folders",
-                                   variable=self.app.include_client_name_in_folders,
-                                   font=('Arial', 10),
-                                   bg='white',
-                                   command=self.app.update_global_folder_setting)
+        # Scroll only while the pointer is over this tab, instead of bind_all
+        # which would hijack the wheel for the whole application.
+        def _wheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+        for w in (canvas, scrollable):
+            w.bind('<Enter>', lambda e: canvas.bind_all('<MouseWheel>', _wheel), add='+')
+            w.bind('<Leave>', lambda e: canvas.unbind_all('<MouseWheel>'), add='+')
+
+    def _accent_card(self, parent, accent, pady=(0, 12)):
+        """A white card with a coloured accent bar down its left edge."""
+        outer = tk.Frame(parent, bg=CARD_BORDER, relief='flat', borderwidth=0,
+                         highlightbackground=CARD_BORDER, highlightthickness=1)
+        outer.pack(fill='x', pady=pady)
+        tk.Frame(outer, bg=accent, width=5).pack(side='left', fill='y')
+        inner = tk.Frame(outer, bg='white')
+        inner.pack(side='left', fill='both', expand=True)
+        return inner
+
+    def _create_header(self, parent):
+        card = self._accent_card(parent, COLORS['primary'])
+
+        row = tk.Frame(card, bg='white')
+        row.pack(fill='x', padx=16, pady=(12, 4))
+
+        tk.Label(row, text="📁  Step 1 — Setup", font=('Segoe UI', 15, 'bold'),
+                 bg='white', fg=COLORS['primary']).pack(side='left')
+
+        # Coloured readiness pill, updated by refresh_status
+        self.summary_label = tk.Label(row, text="", font=('Segoe UI', 9, 'bold'),
+                                      bg='#F1F3F4', fg='#5F6368', padx=10, pady=3)
+        self.summary_label.pack(side='right')
+
+        tk.Label(card,
+                 text="Choose where your GST files are, the two report templates, "
+                      "and where the organised output should go.",
+                 font=('Segoe UI', 9), bg='white', fg='#5F6368',
+                 justify='left', anchor='w').pack(fill='x', padx=16, pady=(0, 12))
+
+    def _create_checklist(self, parent):
+        card = self._accent_card(parent, COLORS['info'])
+
+        tk.Label(card, text="CHECKLIST", font=('Segoe UI', 9, 'bold'),
+                 bg='white', fg=COLORS['info'], anchor='w').pack(
+                     fill='x', padx=16, pady=(10, 6))
+
+        holder = tk.Frame(card, bg='white')
+        holder.pack(fill='x', padx=16, pady=(0, 12))
+
+        for key, label in (('source', 'Source folder'), ('itc', 'ITC template'),
+                           ('sales', 'Sales template'), ('target', 'Target folder')):
+            accent, emoji = INPUT_ACCENT[key]
+
+            # Tinted strip per row - the tint itself carries the status colour
+            row = tk.Frame(holder, bg='#F1F3F4')
+            row.pack(fill='x', pady=2)
+
+            icon = tk.Label(row, text='○', font=('Segoe UI', 12, 'bold'),
+                            bg='#F1F3F4', fg='#8A8F98', width=3)
+            icon.pack(side='left', pady=5)
+
+            name = tk.Label(row, text=f"{emoji}  {label}", font=('Segoe UI', 10, 'bold'),
+                            bg='#F1F3F4', fg=accent, width=20, anchor='w')
+            name.pack(side='left', pady=5)
+
+            detail = tk.Label(row, text='', font=('Segoe UI', 9), bg='#F1F3F4',
+                              fg='#5F6368', anchor='w')
+            detail.pack(side='left', fill='x', expand=True, pady=5)
+
+            self._rows[key] = {'row': row, 'icon': icon, 'name': name, 'detail': detail}
+
+    def _create_inputs(self, parent):
+        section = UIHelpers.create_colored_section(
+            parent, "📂 FOLDERS & TEMPLATES",
+            "Pick each item - the checklist above updates as you go",
+            COLORS['primary'])
+
+        self._path_row(section, 'source', "Source folder (files to organise)",
+                       self.app.source_folder, self.app.browse_source_folder)
+        self._path_row(section, 'itc', "ITC report template",
+                       self.app.itc_template, self.app.browse_itc_template)
+        self._path_row(section, 'sales', "Sales report template",
+                       self.app.sales_template, self.app.browse_sales_template)
+        self._path_row(section, 'target', "Target folder (where output is created)",
+                       self.app.target_folder, self.app.browse_target_folder)
+
+    def _path_row(self, parent, key, label, variable, command):
+        frame = tk.Frame(parent, bg='white')
+        frame.pack(fill='x', padx=15, pady=(6, 2))
+
+        tk.Label(frame, text=label, font=('Segoe UI', 9, 'bold'),
+                 bg='white', fg=COLORS['dark'], anchor='w').pack(fill='x')
+
+        line = tk.Frame(frame, bg='white')
+        line.pack(fill='x', pady=(3, 0))
+
+        entry = tk.Entry(line, textvariable=variable, font=('Segoe UI', 9),
+                         relief='solid', borderwidth=1)
+        entry.pack(side='left', fill='x', expand=True, ipady=4)
+        self._path_tooltips[key] = Tooltip(entry, variable.get())
+
+        # command= (not bind) so state='disabled' is honoured and the keyboard works
+        ttk.Button(line, text="Browse…", command=command).pack(side='right', padx=(8, 0))
+
+        problem = tk.Label(frame, text='', font=('Segoe UI', 8), bg='white',
+                           fg=COLORS['danger'], anchor='w')
+        problem.pack(fill='x')
+        self._rows[key]['problem'] = problem
+
+    def _create_options(self, parent):
+        section = UIHelpers.create_colored_section(
+            parent, "⚙️ PROCESSING MODE", "How the output folders are organised",
+            COLORS['info'])
+
+        holder = tk.Frame(section, bg='white')
+        holder.pack(fill='x', padx=15, pady=10)
+
+        for mode_key, mode_info in PROCESSING_MODES.items():
+            block = tk.Frame(holder, bg='white')
+            block.pack(fill='x', pady=2)
+            tk.Radiobutton(block, text=mode_info['name'],
+                           variable=self.app.processing_mode, value=mode_key,
+                           font=('Segoe UI', 10, 'bold'), bg='white',
+                           fg=COLORS['dark'], anchor='w').pack(anchor='w')
+            tk.Label(block, text=f"     {mode_info['description']}",
+                     font=('Segoe UI', 9), bg='white', fg='#5F6368',
+                     anchor='w').pack(fill='x')
+
+        opts = tk.Frame(holder, bg='white')
+        opts.pack(fill='x', pady=(10, 0))
+
+        self.app.client_name_check = tk.Checkbutton(
+            opts, text="Include client name in Level 4 folder names",
+            variable=self.app.include_client_name_in_folders,
+            font=('Segoe UI', 10), bg='white',
+            command=self.app.update_global_folder_setting)
         self.app.client_name_check.pack(anchor='w')
 
-        tk.Label(options_frame,
-            text="⚠️ Names >10 chars will show warning\n"
-                "ℹ️ This overrides individual client settings if checked",
-            font=('Arial', 9, 'italic'),
-            bg='white',
-            fg='#FF8C00').pack(anchor='w', padx=20)
-        
-        # Client name length setting
-        length_frame = tk.Frame(options_frame, bg='white')
-        length_frame.pack(fill='x', pady=(10, 0))
-        
-        tk.Label(length_frame, text="Client folder name max length:",
-                font=('Arial', 10),
-                bg='white').pack(side='left')
-        
-        def validate_length(value):
-            """Validate client name length input"""
-            if value == "":
-                return True
-            try:
-                num = int(value)
-                return 10 <= num <= 100  # Reasonable range
-            except ValueError:
-                return False
-        
+        tk.Label(opts, text="Overrides the per-client setting on the next tab.",
+                 font=('Segoe UI', 8), bg='white', fg='#5F6368',
+                 anchor='w').pack(fill='x', padx=22)
+
+        length_row = tk.Frame(opts, bg='white')
+        length_row.pack(fill='x', pady=(8, 0))
+        tk.Label(length_row, text="Max client folder name length:",
+                 font=('Segoe UI', 9), bg='white', fg=COLORS['dark']).pack(side='left')
+
         def on_length_change():
-            """Handle length change and save to cache"""
-            value = self.app.client_name_max_length.get()
-            if value <= 0:
-                self.app.client_name_max_length.set(35)  # Reset to default
+            if self.app.client_name_max_length.get() <= 0:
+                self.app.client_name_max_length.set(35)
+            self._update_length_hint()
             self.app.save_cache()
-        
-        vcmd = (self.app.root.register(validate_length), '%P')
-        
-        length_spinbox = tk.Spinbox(length_frame,
-                                   from_=15, to=100, width=5,
-                                   textvariable=self.app.client_name_max_length,
-                                   validate='all', validatecommand=vcmd,
-                                   command=on_length_change,
-                                   font=('Arial', 10))
-        length_spinbox.pack(side='left', padx=(10, 5))
-        
-        tk.Label(length_frame, text="(default: 35, range: 15-100)",
-                font=('Arial', 9, 'italic'),
-                bg='white', fg='gray').pack(side='left', padx=5)
-    
-    def create_action_buttons_section(self, parent):
-        """Create action buttons with working events"""
-        frame = tk.Frame(parent, bg='white', relief='solid', borderwidth=2)
-        frame.pack(fill='x', pady=20)
-        
-        tk.Label(frame,
-                text="🚀 READY TO SCAN?",
-                font=('Arial', 14, 'bold'),
-                bg='white', fg=GUI_CONFIG['colors']['success']).pack(pady=(15, 10))
-        
-        button_frame = tk.Frame(frame, bg='white')
-        button_frame.pack(pady=(0, 15))
-        
-        # Scan button
-        scan_btn = tk.Button(button_frame, text="🔍 SCAN FILES",
-                            font=('Arial', 12, 'bold'),
-                            bg=GUI_CONFIG['colors']['success'], 
-                            fg='white',
-                            relief='flat', 
-                            padx=30, 
-                            pady=10,
-                            cursor='hand2')
-        scan_btn.pack(side='left', padx=10)
-        scan_btn.bind('<Button-1>', lambda e: self.app.scan_files())
-        
-        # Rescan button
-        rescan_btn = tk.Button(button_frame, text="🔄 RE-SCAN",
-                              font=('Arial', 12, 'bold'),
-                              bg=GUI_CONFIG['colors']['warning'], 
-                              fg='white',
-                              relief='flat', 
-                              padx=30, 
-                              pady=10,
-                              cursor='hand2')
-        rescan_btn.pack(side='left', padx=10)
-        rescan_btn.bind('<Button-1>', lambda e: self.app.rescan_files())
-    
-    def create_help_section(self, parent):
-        """Create help section in right column"""
-        colors = GUI_CONFIG['colors']
-        
-        # Instructions card
-        instruction_card = tk.Frame(parent, bg='#E3F2FD', relief='solid', borderwidth=2)
-        instruction_card.pack(fill='x', pady=(0, 20))
-        
-        tk.Label(instruction_card,
-                text="📋 INSTRUCTIONS",
-                font=('Arial', 12, 'bold'),
-                bg='#E3F2FD',
-                fg='#1565C0').pack(pady=(10, 5))
-        
-        instructions = [
-            "1. 📂 Select folder with GST files",
-            "2. 📋 Choose Excel templates",
-            "3. 🎯 Select TARGET FOLDER",
-            "4. ⚙️ Choose processing mode",
-            "5. 🔍 Click 'Scan Files'"
-        ]
-        
-        for instruction in instructions:
-            tk.Label(instruction_card,
-                    text=instruction,
-                    font=('Arial', 10),
-                    bg='#E3F2FD',
-                    fg='#1565C0',
-                    anchor='w').pack(fill='x', padx=10, pady=2)
-        
-        tk.Label(instruction_card, text="", bg='#E3F2FD').pack(pady=5)
-        
-        # File patterns card
-        patterns_card = tk.Frame(parent, bg='#F3E5F5', relief='solid', borderwidth=2)
-        patterns_card.pack(fill='x', pady=(0, 20))
-        
-        tk.Label(patterns_card,
-                text="📝 EXPECTED FILE NAMES",
-                font=('Arial', 12, 'bold'),
-                bg='#F3E5F5',
-                fg='#4A148C').pack(pady=(10, 5))
-        
-        patterns = [
-            "GSTR-2B-Reco-Client-State-Period",
-            "ImsReco-Client-State-DDMMYYYY",
-            "GSTR3B-Client-State-Month",
-            "Sales-Client-State-Start-End",
-            "SalesReco-Client-State-Period",
-            "AnnualReport-Client-State-Year"
-        ]
-        
-        for pattern in patterns:
-            tk.Label(patterns_card,
-                    text=f"• {pattern}",
-                    font=('Arial', 9),
-                    bg='#F3E5F5',
-                    fg='#4A148C',
-                    anchor='w').pack(fill='x', padx=10, pady=1)
+
+        tk.Spinbox(length_row, from_=15, to=100, width=5,
+                   textvariable=self.app.client_name_max_length,
+                   command=on_length_change, font=('Segoe UI', 9)).pack(side='left', padx=(8, 6))
+
+        # Message reflects the ACTUAL configured limit (the old text hard-coded
+        # "10 chars" while the default was 35).
+        self.length_hint = tk.Label(length_row, text='', font=('Segoe UI', 8, 'italic'),
+                                    bg='white', fg='#5F6368')
+        self.length_hint.pack(side='left')
+        self._update_length_hint()
+
+    def _create_actions(self, parent):
+        card = self._accent_card(parent, COLORS['success'], pady=(12, 12))
+
+        inner = tk.Frame(card, bg='white')
+        inner.pack(fill='x', padx=16, pady=12)
+
+        self.app.scan_btn = ttk.Button(inner, text="🔍  Scan Files",
+                                       command=self.app.scan_files)
+        self.app.scan_btn.pack(side='left')
+
+        self.app.rescan_btn = ttk.Button(inner, text="🔄  Re-scan",
+                                         command=self.app.rescan_files)
+        self.app.rescan_btn.pack(side='left', padx=8)
+
+        # Status strip whose tint tracks readiness (set in _update_actions)
+        self.action_bar = tk.Frame(card, bg='#F1F3F4')
+        self.action_bar.pack(fill='x')
+        self.action_hint = tk.Label(self.action_bar, text='', font=('Segoe UI', 9, 'bold'),
+                                    bg='#F1F3F4', fg='#5F6368', anchor='w',
+                                    padx=16, pady=7)
+        self.action_hint.pack(fill='x')
+
+    def _create_reference(self, parent):
+        """Expected filename patterns, read from FILE_PATTERNS so this card can
+        never drift from the regexes the parser actually uses."""
+        card = self._accent_card(parent, '#7B1FA2', pady=(0, 20))
+
+        tk.Label(card, text="📝  EXPECTED FILE NAMES", font=('Segoe UI', 9, 'bold'),
+                 bg='white', fg='#7B1FA2', anchor='w').pack(
+                     fill='x', padx=16, pady=(10, 2))
+        tk.Label(card, text="Files in the source folder must follow these patterns "
+                            "to be recognised.",
+                 font=('Segoe UI', 8), bg='white', fg='#5F6368',
+                 anchor='w').pack(fill='x', padx=16, pady=(0, 6))
+
+        holder = tk.Frame(card, bg='white')
+        holder.pack(fill='x', padx=16, pady=(0, 12))
+
+        # Tint alternate rows so the list is easy to scan
+        for idx, info in enumerate(FILE_PATTERNS.values()):
+            bg = '#FAF5FC' if idx % 2 == 0 else 'white'
+            row = tk.Frame(holder, bg=bg)
+            row.pack(fill='x')
+            tk.Label(row, text=info['type'], font=('Segoe UI', 8, 'bold'),
+                     bg=bg, fg='#7B1FA2', width=16, anchor='w').pack(
+                         side='left', padx=(6, 0), pady=3)
+            tk.Label(row, text=info['description'], font=('Consolas', 8),
+                     bg=bg, fg=COLORS['dark'], anchor='w').pack(
+                         side='left', fill='x', expand=True, pady=3)
+
+    # ------------------------------------------------------------- validation
+    def _attach_traces(self):
+        """Re-validate (debounced) whenever any path changes."""
+        for var in (self.app.source_folder, self.app.itc_template,
+                    self.app.sales_template, self.app.target_folder):
+            var.trace_add('write', self._schedule_refresh)
+
+    def _schedule_refresh(self, *_args):
+        if self._revalidate_job:
+            try:
+                self.app.root.after_cancel(self._revalidate_job)
+            except Exception:
+                pass
+        self._revalidate_job = self.app.root.after(REVALIDATE_DELAY_MS,
+                                                   self.refresh_status)
+
+    def _exists(self, path_str):
+        """Existence check with a small cache - one round-trip per distinct path
+        instead of one per repaint."""
+        if path_str not in self._exists_cache:
+            try:
+                self._exists_cache[path_str] = Path(path_str).exists()
+            except (OSError, ValueError):
+                self._exists_cache[path_str] = False
+        return self._exists_cache[path_str]
+
+    def refresh_status(self, force=False):
+        """Repaint the checklist and button states from current values."""
+        self._revalidate_job = None
+        if force:
+            self._exists_cache.clear()
+
+        checks = sv.evaluate_setup(
+            self.app.source_folder.get(), self.app.itc_template.get(),
+            self.app.sales_template.get(), self.app.target_folder.get(),
+            exists=self._exists)
+
+        for check in checks:
+            row = self._rows.get(check.key)
+            if not row:
+                continue
+            icon, colour, tint = STATE_STYLE[check.state]
+            accent, emoji = INPUT_ACCENT[check.key]
+            row['icon'].config(text=icon, fg=colour, bg=tint)
+            row['detail'].config(text=check.message, bg=tint)
+            row['name'].config(bg=tint, fg=accent)
+            row['row'].config(bg=tint)
+            if 'problem' in row:
+                row['problem'].config(
+                    text=check.message if check.state == sv.INVALID else '')
+
+        for key, var in (('source', self.app.source_folder),
+                         ('itc', self.app.itc_template),
+                         ('sales', self.app.sales_template),
+                         ('target', self.app.target_folder)):
+            tip = self._path_tooltips.get(key)
+            if tip:
+                tip.set_text(var.get())
+
+        # Readiness pill: green when everything is set, amber while incomplete
+        if sv.can_process(checks):
+            self.summary_label.config(text=sv.summary_line(checks),
+                                      bg='#E8F5E8', fg=COLORS['success'])
+        else:
+            self.summary_label.config(text=sv.summary_line(checks),
+                                      bg='#FFF4E5', fg='#8A5300')
+
+        self._update_actions(checks)
+
+    def _update_actions(self, checks):
+        ready = sv.can_scan(checks)
+        state = 'normal' if ready else 'disabled'
+        for btn in (getattr(self.app, 'scan_btn', None),
+                    getattr(self.app, 'rescan_btn', None)):
+            if btn is not None:
+                btn.config(state=state)
+
+        if not ready:
+            blocking = sv.blocking_labels(checks, sv.FOR_SCAN)
+            text, fg, tint = (f"Select a valid {blocking[0].lower()} to scan",
+                              COLORS['danger'], '#FDECEA')
+        elif sv.can_process(checks):
+            text, fg, tint = ("Ready to scan, and to process afterwards",
+                              COLORS['success'], '#E8F5E8')
+        else:
+            pending = sv.blocking_labels(checks, sv.FOR_PROCESSING)
+            text, fg, tint = ("Ready to scan · still needed for Step 3: "
+                              + ", ".join(pending), '#8A5300', '#FFF4E5')
+
+        self.action_hint.config(text=text, fg=fg, bg=tint)
+        if getattr(self, 'action_bar', None) is not None:
+            self.action_bar.config(bg=tint)
+
+    def _update_length_hint(self):
+        try:
+            limit = self.app.client_name_max_length.get()
+        except Exception:
+            limit = 35
+        self.length_hint.config(text=f"(default 35 · names over {limit} are shortened)")
