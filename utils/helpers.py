@@ -9,6 +9,7 @@ import time
 import shutil
 import hashlib
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from stat import S_ISREG, S_ISDIR
 from datetime import datetime
@@ -251,40 +252,59 @@ def validate_excel_file(file_path: Union[str, Path],
     Returns:
         bool: True if valid Excel file
     """
-    try:
-        path = Path(file_path)
+    path = Path(file_path)
+    # Cheap checks first (no extra IO when stat_result is supplied), then the
+    # one read that actually costs a round-trip.
+    if not _passes_metadata_checks(path, stat_result):
+        return False
+    return _has_excel_signature(path)
 
+
+# Excel file signatures (first bytes on disk)
+_XLSX_SIG = b'PK\x03\x04'          # ZIP-based (.xlsx/.xlsm/.xltx)
+_XLS_SIG = b'\xd0\xcf\x11\xe0'     # OLE-based (.xls)
+
+# How many signature reads to run concurrently. Opening a handle on a network
+# share costs several round-trips (measured ~270ms/file on a VPN-backed SMB
+# share), and it is pure waiting - open()/read() release the GIL - so
+# overlapping them is a ~10x win. Local disk is unaffected: it is fast either way.
+_SIGNATURE_READ_WORKERS = 16
+_MIN_FILES_FOR_PARALLEL = 4
+
+
+def _has_excel_signature(path: Path) -> bool:
+    """Read the first bytes and check for a genuine Excel signature.
+
+    This is the only per-file network round-trip left in a scan, so it is the
+    unit that scan_excel_files parallelises.
+    """
+    try:
+        with open(path, 'rb') as f:
+            header = f.read(8)
+        return header.startswith(_XLSX_SIG) or header.startswith(_XLS_SIG)
+    except Exception as e:
+        logger.error(f"Error validating Excel file {path}: {e}")
+        return False
+
+
+def _passes_metadata_checks(path: Path, stat_result: Optional[os.stat_result]) -> bool:
+    """The no-extra-IO half of validation: type, extension and size."""
+    try:
         if stat_result is None:
-            # Check existence
             if not path.exists() or not path.is_file():
                 return False
         elif not S_ISREG(stat_result.st_mode):
-            # Same rejection as the is_file() check above (e.g. a directory
-            # named '*.xlsx'), derived from the cached stat.
             return False
 
-        # Check extension
         if path.suffix.lower() not in {'.xlsx', '.xls', '.xlsm', '.xltx', '.xltm'}:
             return False
 
-        # Check file size (too small = probably corrupted)
         size = stat_result.st_size if stat_result is not None else path.stat().st_size
-        if size < 1024:  # Less than 1KB
-            return False
-
-        # Check file signature
-        with open(path, 'rb') as f:
-            header = f.read(8)
-        
-        # Check for Excel signatures
-        xlsx_sig = b'PK\x03\x04'  # ZIP-based
-        xls_sig = b'\xd0\xcf\x11\xe0'  # OLE-based
-        
-        return header.startswith(xlsx_sig) or header.startswith(xls_sig)
-        
+        return size >= 1024
     except Exception as e:
-        logger.error(f"Error validating Excel file {file_path}: {e}")
+        logger.error(f"Error validating Excel file {path}: {e}")
         return False
+
 
 def scan_excel_files(folder: Union[str, Path]) -> List[Tuple[Path, os.stat_result]]:
     """Find all valid Excel files in folder, returning each with its cached stat.
@@ -318,8 +338,25 @@ def scan_excel_files(folder: Union[str, Path]) -> List[Tuple[Path, os.stat_resul
                     continue
                 candidates.append((Path(entry.path), st))
 
-        # Filter valid Excel files only, reusing the cached stat.
-        valid = [(p, st) for p, st in candidates if validate_excel_file(p, st)]
+        # Cheap metadata filtering first (no IO - uses the cached stat), so we
+        # only pay for a file open on files that could still be valid.
+        candidates = [(p, st) for p, st in candidates
+                      if _passes_metadata_checks(p, st)]
+
+        # The signature read is the only remaining per-file round-trip. Run them
+        # concurrently: it is pure network waiting and open()/read() release the
+        # GIL, so this overlaps rather than serialises the latency. Results are
+        # collected positionally, then sorted, so the output order is identical
+        # to the sequential version.
+        if len(candidates) >= _MIN_FILES_FOR_PARALLEL:
+            workers = min(_SIGNATURE_READ_WORKERS, len(candidates))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                ok_flags = list(pool.map(_has_excel_signature,
+                                         [p for p, _ in candidates]))
+        else:
+            ok_flags = [_has_excel_signature(p) for p, _ in candidates]
+
+        valid = [pair for pair, ok in zip(candidates, ok_flags) if ok]
 
         return sorted(valid, key=lambda pair: pair[0])
 

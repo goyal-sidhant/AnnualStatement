@@ -103,6 +103,30 @@ class TestScanExcelFiles:
     def test_empty_folder(self, tmp_path):
         assert scan_excel_files(tmp_path) == []
 
+    def test_parallel_branch_matches_sequential(self, tmp_path, make_excel):
+        """A folder large enough to use the thread pool must give the same
+        result - same files, same order - as the sequential path.
+
+        The signature reads are parallelised, so this guards against results
+        being dropped or reordered by the pool.
+        """
+        expected = []
+        for i in range(30):
+            name = f"GSTR3B-Client{i:02d}-Delhi-Jan.xlsx"
+            make_excel(tmp_path / name)
+            expected.append(name)
+        # interleave invalid files that must still be excluded
+        make_excel(tmp_path / "aaa_tiny.xlsx", size=500)
+        make_excel(tmp_path / "zzz_fake.xlsx", header=b"NOPE")
+        (tmp_path / "mmm_dir.xlsx").mkdir()
+
+        pairs = scan_excel_files(tmp_path)
+        names = [p.name for p in (p for p, _ in pairs)]
+
+        assert names == sorted(expected)          # correct set AND order
+        assert len(pairs) == 30
+        assert all(st.st_size >= 1024 for _, st in pairs)
+
     def test_missing_folder_returns_empty(self, tmp_path):
         assert scan_excel_files(tmp_path / "nope") == []
 
