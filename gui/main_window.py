@@ -85,6 +85,9 @@ class GSTOrganizerApp:
         self.client_folder_settings = {}
         self.target_folder = tk.StringVar()
         self.processing_mode = tk.StringVar(value='fresh')
+        # 'organize' = files + reports only; 'full' also refreshes Power
+        # Query and extracts (Step 4).
+        self.workflow_mode = tk.StringVar(value='organize')
         self.dark_mode = tk.BooleanVar(value=False)
         self.include_client_name_in_folders = tk.BooleanVar(value=False)
         self.client_name_max_length = tk.IntVar(value=35)
@@ -340,6 +343,7 @@ class GSTOrganizerApp:
             'sales_template': self.sales_template.get(),
             'target_folder': self.target_folder.get(),
             'processing_mode': self.processing_mode.get(),
+            'workflow_mode': self.workflow_mode.get(),
             'include_client_name': self.include_client_name_in_folders.get(),
             'dark_mode': self.dark_mode.get(),
             'client_name_max_length': self.client_name_max_length.get()
@@ -355,6 +359,8 @@ class GSTOrganizerApp:
             self.target_folder.set(self.cache_data.get('target_folder', ''))
             self.processing_mode.set(self.cache_data.get('processing_mode', 'fresh'))
             self.include_client_name_in_folders.set(self.cache_data.get('include_client_name', False))
+            self.workflow_mode.set(
+                self.cache_data.get('workflow_mode', 'organize'))
             self.dark_mode.set(self.cache_data.get('dark_mode', False))
             # Set client name max length with validation (default 35 if 0 or invalid)
             cached_length = self.cache_data.get('client_name_max_length', 35)

@@ -28,6 +28,7 @@ class FakeApp:
         self.sales_template = tk.StringVar()
         self.target_folder = tk.StringVar()
         self.processing_mode = tk.StringVar(value='fresh')
+        self.workflow_mode = tk.StringVar(value='organize')
         self.include_client_name_in_folders = tk.BooleanVar(value=False)
         self.client_name_max_length = tk.IntVar(value=35)
         self.calls = []

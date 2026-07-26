@@ -160,6 +160,17 @@ GUI_CONFIG = {
 # PROCESSING MODES
 # ============================================================================
 
+WORKFLOW_MODES = {
+    'organize': {
+        'name': '📁 Organise files & create reports',
+        'description': 'Sort the files and build the ITC/Sales reports, then stop.',
+    },
+    'full': {
+        'name': '🔄 Full pipeline',
+        'description': 'Also refresh Power Query and extract the data (slower).',
+    },
+}
+
 PROCESSING_MODES = {
     'fresh': {
         'name': '🆕 Fresh Run',

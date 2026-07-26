@@ -133,6 +133,47 @@ class ProcessingHandler:
         )
         self.app.processing_thread.start()
     
+    def _maybe_continue_to_extraction(self):
+        """When the workflow is 'full', hand over to Step 4 once Step 3 is done.
+
+        Switches to the tab and scans it so the client list is ready, but does
+        NOT start the refresh: that drives Excel for many minutes per report, so
+        it stays an explicit press. In 'organize' mode nothing happens here -
+        Step 4 is still there whenever the user wants it.
+        """
+        try:
+            if self.app.workflow_mode.get() != 'full':
+                self._log_async(
+                    "ℹ️ Workflow is 'organise only'. Open Step 4 if you also want "
+                    "to refresh Power Query.", 'info')
+                return
+        except Exception:
+            return
+
+        extract_tab = getattr(self.app, 'extract_tab', None)
+        if extract_tab is None:
+            return
+
+        self._log_async("\n🔄 Full pipeline: moving to Step 4 to extract…", 'info')
+        # Marshal to the UI thread - this runs on the worker thread.
+        self.app.root.after(0, self._open_extraction_tab)
+
+    def _open_extraction_tab(self):
+        """Select Step 4 and scan it (UI thread only)."""
+        try:
+            self.app.notebook.select(3)
+            panel = self.app.extract_tab.panel
+            target = self.app.target_folder.get()
+            if target:
+                panel.folder_path.set(target)
+            panel.scan_folder()
+            self.app.log_message(
+                "✅ Step 4 ready - review the client list and press Process "
+                "to refresh.", 'success')
+        except Exception as e:
+            logger.error(f"Could not open the extraction tab: {e}", exc_info=True)
+            self.app.log_message(f"Could not open Step 4 automatically: {e}", 'warning')
+
     def stop_processing(self):
         """Stop processing"""
         self.app.stop_requested = True
@@ -473,7 +514,11 @@ class ProcessingHandler:
                     self.app.log_message(f"📂 Opened output folder", 'success')
                 except Exception as e:
                     self.app.log_message(f"Could not open folder: {e}", 'warning')
-                    
+
+            # Full pipeline: continue into Step 4 automatically.
+            self._maybe_continue_to_extraction()
+
+
         except Exception as e:
             self.app.log_message(f"💥 Fatal error: {str(e)}", 'error')
             logger.error(f"Processing error: {str(e)}", exc_info=True)

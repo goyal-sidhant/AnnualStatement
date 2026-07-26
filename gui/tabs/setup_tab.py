@@ -14,7 +14,9 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
-from utils.constants import FILE_PATTERNS, GUI_CONFIG, PROCESSING_MODES
+from utils.constants import (
+    FILE_PATTERNS, GUI_CONFIG, PROCESSING_MODES, WORKFLOW_MODES,
+)
 from ..utils.ui_helpers import UIHelpers
 from ..utils import setup_validation as sv
 from ..widgets.tooltip import Tooltip
@@ -81,6 +83,7 @@ class SetupTab:
 
         self._create_header(body)
         self._create_checklist(body)
+        self._create_workflow(body)
         self._create_inputs(body)
         self._create_options(body)
         self._create_actions(body)
@@ -205,6 +208,41 @@ class SetupTab:
             detail.pack(side='left', fill='x', expand=True, pady=5)
 
             self._rows[key] = {'row': row, 'icon': icon, 'name': name, 'detail': detail}
+
+    def _create_workflow(self, parent):
+        """How far the run should go: reports only, or the full pipeline."""
+        card = self._accent_card(parent, COLORS['warning'])
+
+        tk.Label(card, text="WHAT SHOULD THIS RUN DO?", font=('Segoe UI', 9, 'bold'),
+                 bg='white', fg='#8A5300', anchor='w').pack(
+                     fill='x', padx=16, pady=(10, 6))
+
+        holder = tk.Frame(card, bg='white')
+        holder.pack(fill='x', padx=16, pady=(0, 12))
+
+        for key, info in WORKFLOW_MODES.items():
+            block = tk.Frame(holder, bg='white')
+            block.pack(fill='x', pady=2)
+            tk.Radiobutton(block, text=info['name'],
+                           variable=self.app.workflow_mode, value=key,
+                           font=('Segoe UI', 10, 'bold'), bg='white',
+                           fg=COLORS['dark'], anchor='w',
+                           command=self._on_workflow_change).pack(anchor='w')
+            tk.Label(block, text=f"     {info['description']}",
+                     font=('Segoe UI', 9), bg='white', fg='#5F6368',
+                     anchor='w').pack(fill='x')
+
+        tk.Label(holder,
+                 text="Step 4 stays available either way - this only decides whether "
+                      "Step 3 continues into it automatically.",
+                 font=('Segoe UI', 8, 'italic'), bg='white', fg='#5F6368',
+                 anchor='w', justify='left').pack(fill='x', pady=(6, 0))
+
+    def _on_workflow_change(self):
+        try:
+            self.app.save_cache()
+        except Exception:
+            pass
 
     def _create_inputs(self, parent):
         section = UIHelpers.create_colored_section(
