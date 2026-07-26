@@ -23,20 +23,48 @@ from ..widgets.tooltip import Tooltip
 
 COLORS = GUI_CONFIG['colors']
 
-# Per-state presentation for a checklist row: icon, text colour, row tint
+# Per-state presentation for a checklist row: icon, text colour, row tint.
+# These colours are re-applied on every refresh, so they need a dark variant -
+# otherwise dark mode ends up with light grey rows and faint grey text.
 STATE_STYLE = {
     sv.OK:      ('✓', COLORS['success'], '#E8F5E8'),
     sv.MISSING: ('○', '#8A8F98', '#F1F3F4'),
     sv.INVALID: ('✕', COLORS['danger'], '#FDECEA'),
 }
+STATE_STYLE_DARK = {
+    sv.OK:      ('✓', '#7EE787', '#1B3326'),
+    sv.MISSING: ('○', '#9AA0A6', '#3A3A3A'),
+    sv.INVALID: ('✕', '#FF8A7A', '#4A2320'),
+}
 
-# Accent colour + emoji per input, so each row is visually distinct
+# Accent colour + emoji per input, so each row is visually distinct.
+# The dark set is brightened: the light colours are too dim to read on a dark row.
 INPUT_ACCENT = {
     'source': (COLORS['success'], '📂'),
     'itc':    (COLORS['primary'], '📊'),
     'sales':  (COLORS['info'], '💰'),
     'target': (COLORS['warning'], '🎯'),
 }
+INPUT_ACCENT_DARK = {
+    'source': ('#7EE787', '📂'),
+    'itc':    ('#79C0FF', '📊'),
+    'sales':  ('#56D4DD', '💰'),
+    'target': ('#FFB86C', '🎯'),
+}
+
+# Card surfaces, so headings and detail text stay legible in either theme.
+LIGHT_SURFACE = {'card': 'white', 'muted': '#5F6368', 'border': '#DADCE0',
+                 'pill_ok': ('#E8F5E8', COLORS['success']),
+                 'pill_wait': ('#FFF4E5', '#8A5300'),
+                 'bar_ok': ('#E8F5E8', COLORS['success']),
+                 'bar_wait': ('#FFF4E5', '#8A5300'),
+                 'bar_bad': ('#FDECEA', COLORS['danger'])}
+DARK_SURFACE = {'card': '#2b2b2b', 'muted': '#B9BDC4', 'border': '#4A4A4A',
+                'pill_ok': ('#1B3326', '#7EE787'),
+                'pill_wait': ('#3E3320', '#FFB86C'),
+                'bar_ok': ('#1B3326', '#7EE787'),
+                'bar_wait': ('#3E3320', '#FFB86C'),
+                'bar_bad': ('#4A2320', '#FF8A7A')}
 
 CARD_BORDER = '#DADCE0'
 
@@ -58,6 +86,7 @@ class SetupTab:
         self._exists_cache = {}
         self._canvas = None
         self._wheel_accum = 0.0
+        self._accent_bars = []      # (widget, colour) to repaint per theme
         self.create_tab()
         self._attach_traces()
         self.refresh_status(force=True)
@@ -108,6 +137,13 @@ class SetupTab:
         canvas.bind_all('<MouseWheel>', self._on_mousewheel, add='+')
 
     # --------------------------------------------------------------- scrolling
+    def _is_dark(self):
+        """Whether the app is currently in dark mode (safe if unavailable)."""
+        try:
+            return bool(self.app.dark_mode.get())
+        except Exception:
+            return False
+
     def _is_in_scroll_area(self, widget):
         """True if `widget` is the scroll canvas or a descendant of it."""
         node = widget
@@ -152,7 +188,9 @@ class SetupTab:
         outer = tk.Frame(parent, bg=CARD_BORDER, relief='flat', borderwidth=0,
                          highlightbackground=CARD_BORDER, highlightthickness=1)
         outer.pack(fill='x', pady=pady)
-        tk.Frame(outer, bg=accent, width=5).pack(side='left', fill='y')
+        bar = tk.Frame(outer, bg=accent, width=5)
+        bar.pack(side='left', fill='y')
+        self._accent_bars.append((bar, accent))
         inner = tk.Frame(outer, bg='white')
         inner.pack(side='left', fill='both', expand=True)
         return inner
@@ -424,19 +462,33 @@ class SetupTab:
             self.app.sales_template.get(), self.app.target_folder.get(),
             exists=self._exists)
 
+        dark = self._is_dark()
+        states = STATE_STYLE_DARK if dark else STATE_STYLE
+        accents = INPUT_ACCENT_DARK if dark else INPUT_ACCENT
+        surface = DARK_SURFACE if dark else LIGHT_SURFACE
+
         for check in checks:
             row = self._rows.get(check.key)
             if not row:
                 continue
-            icon, colour, tint = STATE_STYLE[check.state]
-            accent, emoji = INPUT_ACCENT[check.key]
+            icon, colour, tint = states[check.state]
+            accent, emoji = accents[check.key]
             row['icon'].config(text=icon, fg=colour, bg=tint)
-            row['detail'].config(text=check.message, bg=tint)
+            row['detail'].config(text=check.message, bg=tint, fg=surface['muted'])
             row['name'].config(bg=tint, fg=accent)
             row['row'].config(bg=tint)
             if 'problem' in row:
                 row['problem'].config(
                     text=check.message if check.state == sv.INVALID else '')
+
+        # Dark mode themes every Frame, which flattens the coloured accent bars
+        # down the left edge of each card. Paint them back so the cards keep
+        # their identity in both themes.
+        for bar, colour in getattr(self, '_accent_bars', []):
+            try:
+                bar.config(bg=colour)
+            except Exception:
+                pass
 
         for key, var in (('source', self.app.source_folder),
                          ('itc', self.app.itc_template),
@@ -447,12 +499,9 @@ class SetupTab:
                 tip.set_text(var.get())
 
         # Readiness pill: green when everything is set, amber while incomplete
-        if sv.can_process(checks):
-            self.summary_label.config(text=sv.summary_line(checks),
-                                      bg='#E8F5E8', fg=COLORS['success'])
-        else:
-            self.summary_label.config(text=sv.summary_line(checks),
-                                      bg='#FFF4E5', fg='#8A5300')
+        pill_bg, pill_fg = surface['pill_ok' if sv.can_process(checks) else 'pill_wait']
+        self.summary_label.config(text=sv.summary_line(checks),
+                                  bg=pill_bg, fg=pill_fg)
 
         self._update_actions(checks)
 
@@ -464,17 +513,18 @@ class SetupTab:
             if btn is not None:
                 btn.config(state=state)
 
+        surface = DARK_SURFACE if self._is_dark() else LIGHT_SURFACE
         if not ready:
             blocking = sv.blocking_labels(checks, sv.FOR_SCAN)
-            text, fg, tint = (f"Select a valid {blocking[0].lower()} to scan",
-                              COLORS['danger'], '#FDECEA')
+            text = f"Select a valid {blocking[0].lower()} to scan"
+            tint, fg = surface['bar_bad']
         elif sv.can_process(checks):
-            text, fg, tint = ("Ready to scan, and to process afterwards",
-                              COLORS['success'], '#E8F5E8')
+            text = "Ready to scan, and to process afterwards"
+            tint, fg = surface['bar_ok']
         else:
             pending = sv.blocking_labels(checks, sv.FOR_PROCESSING)
-            text, fg, tint = ("Ready to scan · still needed for Step 3: "
-                              + ", ".join(pending), '#8A5300', '#FFF4E5')
+            text = "Ready to scan · still needed for Step 3: " + ", ".join(pending)
+            tint, fg = surface['bar_wait']
 
         self.action_hint.config(text=text, fg=fg, bg=tint)
         if getattr(self, 'action_bar', None) is not None:
