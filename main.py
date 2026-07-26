@@ -46,32 +46,54 @@ def main():
     """Main entry point"""
     try:
         setup_environment()
-        
-        # Import after setup
-        from gui.main_window import GSTOrganizerApp
-        
+
         print("=" * 60)
         print("🚀 GST File Organizer v3.0 - Production Ready")
         print("=" * 60)
-        
+
+        # Check dependencies BEFORE importing the GUI, so a missing package is
+        # reported plainly instead of surfacing as an obscure ImportError.
+        from utils.requirements_check import (
+            check_requirements, format_report, missing_essential, missing_optional,
+        )
+        results = check_requirements()
+        print(format_report(results))
+        print("=" * 60)
+
+        blocking = missing_essential(results)
+        if blocking:
+            for result in blocking:
+                logging.error("Required package missing: %s",
+                              result.requirement.package)
+            input("\nPress Enter to exit...")
+            sys.exit(1)
+
+        for result in missing_optional(results):
+            logging.warning("%s not installed - %s",
+                            result.requirement.package, result.requirement.purpose)
+
+        # Import after the check
+        from gui.main_window import GSTOrganizerApp
+
         app = GSTOrganizerApp()
         app.run()
-        
+
     except ImportError as e:
-        logging.error(f"Import Error: {e}")
-        print("\n❌ Missing module! Please ensure all files are in place:")
-        print("   📁 core/")
-        print("      📄 file_parser.py")
-        print("      📄 file_organizer.py")
-        print("      📄 excel_handler.py")
-        print("   📁 utils/")
-        print("      📄 constants.py")
-        print("      📄 helpers.py")
-        print("   📁 gui/")
-        print("      📄 app.py")
+        logging.error(f"Import Error: {e}", exc_info=True)
+        print(f"\n❌ Could not start: {e}")
+        print("\nThis usually means a required package is missing for THIS Python,")
+        print("or a source file has been moved.")
+        try:
+            from utils.requirements_check import interpreter_hint
+            print(f"\n   Running: {interpreter_hint()}")
+        except Exception:
+            pass
+        print("\n   Try:  pip install -r requirements.txt")
+        print("   Note 'py' and 'python' can be different interpreters.")
         input("\nPress Enter to exit...")
         sys.exit(1)
-        
+
+
     except Exception as e:
         logging.error(f"Critical error: {e}", exc_info=True)
         print(f"\n💥 Critical error: {e}")
