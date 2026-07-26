@@ -73,6 +73,27 @@ def main():
         print("=" * 60)
 
         blocking = missing_essential(results)
+        optional = missing_optional(results)
+
+        if blocking or optional:
+            # Offer to install rather than just refusing. This is an offer, not
+            # a silent install - and a restart is required afterwards, because
+            # pywin32 only becomes importable in a freshly started interpreter.
+            from utils.dependency_installer import offer_install, restart_application
+
+            requirements = Path(__file__).parent / 'requirements.txt'
+            installed = offer_install(
+                blocking + optional,
+                requirements_path=requirements if requirements.exists() else None,
+            )
+            if installed:
+                print("\n✅ Packages installed - restarting…")
+                if restart_application():
+                    sys.exit(0)
+                print("Could not restart automatically. Please start the app again.")
+                _pause()
+                sys.exit(0)
+
         if blocking:
             for result in blocking:
                 logging.error("Required package missing: %s",
@@ -80,7 +101,7 @@ def main():
             _pause()
             sys.exit(1)
 
-        for result in missing_optional(results):
+        for result in optional:
             logging.warning("%s not installed - %s",
                             result.requirement.package, result.requirement.purpose)
 
