@@ -26,6 +26,7 @@ from .widgets.collapsible_frame import CollapsibleFrame
 from .tabs.setup_tab import SetupTab
 from .tabs.validation_tab import ValidationTab
 from .tabs.processing_tab import ProcessingTab
+from .tabs.extract_tab import ExtractTab
 from .handlers.file_handler import FileHandler
 from .handlers.client_handler import ClientHandler
 from .handlers.processing_handler import ProcessingHandler
@@ -137,6 +138,9 @@ class GSTOrganizerApp:
         self.setup_tab = SetupTab(self.notebook, self)
         self.validation_tab = ValidationTab(self.notebook, self)
         self.processing_tab = ProcessingTab(self.notebook, self)
+        # Step 4 hosts the Power Query Extractor. Built without scanning, so
+        # startup does not touch the network; the user presses Scan there.
+        self.extract_tab = ExtractTab(self.notebook, self)
         
         # Create status bar
         self.status_bar = StatusBar(self.root)
@@ -304,8 +308,11 @@ class GSTOrganizerApp:
     def on_tab_changed(self, event):
         """Handle tab change"""
         current = self.notebook.index('current')
-        tabs = ['Setup', 'Validation', 'Processing']
-        self.update_status(f"Step {current + 1}: {tabs[current]}")
+        tabs = ['Setup', 'Validation', 'Processing', 'Extract']
+        # Read the name defensively: a hardcoded list silently went out of range
+        # when a fourth tab was added, raising IndexError on every tab change.
+        name = tabs[current] if 0 <= current < len(tabs) else f"Step {current + 1}"
+        self.update_status(f"Step {current + 1}: {name}")
         
         # Force UI update when switching tabs
         if not self.is_processing:

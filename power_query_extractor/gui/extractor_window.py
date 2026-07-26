@@ -105,7 +105,7 @@ class ExtractorPanel(ttk.Frame):
     """
 
     def __init__(self, parent, target_folder=None,
-                 show_header=True, show_status_bar=True):
+                 show_header=True, show_status_bar=True, auto_load=True):
         super().__init__(parent)
 
         self.target_folder = target_folder
@@ -124,8 +124,15 @@ class ExtractorPanel(ttk.Frame):
         self._init_vars()
         self.create_widgets()
 
-        # Auto-load folder if available
-        if target_folder:
+        # Auto-load folder if available.
+        #
+        # auto_load=False pre-fills the folder but does NOT scan. Embedded in the
+        # main app the panel is built at startup, and scanning there would hit
+        # the network on every launch - the user presses Scan when ready.
+        if not auto_load:
+            if target_folder:
+                self.folder_path.set(target_folder)
+        elif target_folder:
             self.folder_path.set(target_folder)
             self.scan_folder()
         else:
