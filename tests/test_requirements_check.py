@@ -49,10 +49,17 @@ class TestRealRequirements:
         openpyxl = next(r for r in REQUIREMENTS if r.package == 'openpyxl')
         assert openpyxl.essential is True
 
-    def test_pywin32_is_optional_not_fatal(self):
-        """Steps 1-3 work without it, so a missing pywin32 must not block startup."""
+    def test_pywin32_is_required_on_windows(self):
+        """Without Excel COM, report creation falls back to openpyxl and the
+        reports come out stripped of Power Query - silently. Producing damaged
+        reports is worse than refusing to start, so this must block."""
+        import sys
         pywin32 = next(r for r in REQUIREMENTS if r.package == 'pywin32')
-        assert pywin32.essential is False
+        assert pywin32.essential is (sys.platform == 'win32')
+
+    def test_pywin32_explains_what_would_break(self):
+        pywin32 = next(r for r in REQUIREMENTS if r.package == 'pywin32')
+        assert 'Power Query' in pywin32.consequence
 
     def test_pywin32_is_checked_by_its_import_name(self):
         """'pywin32' is not importable - 'pythoncom' is."""

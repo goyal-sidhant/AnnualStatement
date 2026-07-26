@@ -42,6 +42,18 @@ def setup_environment():
             if not init_file.exists():
                 init_file.write_text('"""Package initialization"""')
 
+def _pause(message="\nPress Enter to exit..."):
+    """Wait for the user, but never fail if there is no console input.
+
+    Without this, a blocked start prints its real reason and then a spurious
+    "Critical error: EOF when reading a line" on top of it.
+    """
+    try:
+        input(message)
+    except (EOFError, KeyboardInterrupt, OSError):
+        pass
+
+
 def main():
     """Main entry point"""
     try:
@@ -65,7 +77,7 @@ def main():
             for result in blocking:
                 logging.error("Required package missing: %s",
                               result.requirement.package)
-            input("\nPress Enter to exit...")
+            _pause()
             sys.exit(1)
 
         for result in missing_optional(results):
@@ -90,14 +102,14 @@ def main():
             pass
         print("\n   Try:  pip install -r requirements.txt")
         print("   Note 'py' and 'python' can be different interpreters.")
-        input("\nPress Enter to exit...")
+        _pause()
         sys.exit(1)
 
 
     except Exception as e:
         logging.error(f"Critical error: {e}", exc_info=True)
         print(f"\n💥 Critical error: {e}")
-        input("\nPress Enter to exit...")
+        _pause()
         sys.exit(1)
 
 if __name__ == "__main__":
