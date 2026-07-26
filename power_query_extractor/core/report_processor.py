@@ -8,11 +8,32 @@ import shutil
 import logging
 from pathlib import Path
 from datetime import datetime
-import pythoncom
-import win32com.client
-import win32api
-import win32con
-import win32gui
+# Excel COM automation. These are Windows-only and provided by pywin32, which is
+# genuinely optional: the main organizer works without it (core/excel_handler.py
+# falls back to openpyxl), and only the Power Query refresh truly needs it.
+#
+# They were imported unconditionally, which was fine while this module was only
+# reachable from the standalone extractor. Now the main window hosts the
+# extractor as Step 4, so an unconditional import here takes the WHOLE app down
+# on a Python without pywin32 - note that `py` and `python` can resolve to
+# different interpreters with different packages installed.
+try:
+    import pythoncom
+    import win32com.client
+    import win32api
+    import win32con
+    import win32gui
+    WIN32_AVAILABLE = True
+except ImportError as _win32_import_error:  # pragma: no cover - platform dependent
+    pythoncom = None
+    win32com = None
+    win32api = None
+    win32con = None
+    win32gui = None
+    WIN32_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "pywin32 not available (%s). Power Query refresh is disabled; "
+        "install it with: pip install pywin32", _win32_import_error)
 from ..config.cell_mappings import CELL_MAPPINGS
 from ..core.refresh_naming import DEFAULT_SUFFIX_PATTERN, is_refreshed_copy_of
 from utils.excel_com import find_open_workbook
@@ -41,6 +62,19 @@ class ReportProcessor:
     def process_client(self, client_data, log_callback=None):
         """Process selected reports for a client"""
         self.log_callback = log_callback  # Store the callback
+
+        if not WIN32_AVAILABLE:
+            message = ("pywin32 is not installed for this Python, so Power Query "
+                       "cannot be refreshed. Install it with: pip install pywin32")
+            self._log(f"❌ {message}")
+            empty = {'status': {'success': False, 'error': message},
+                     'data': {}, 'extracted_values': {}}
+            return {
+                'client': client_data['name'],
+                'timestamp': datetime.now(),
+                'itc': dict(empty),
+                'sales': dict(empty),
+            }
 
         results = {
             'client': client_data['name'],
