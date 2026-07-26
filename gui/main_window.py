@@ -196,11 +196,15 @@ class GSTOrganizerApp:
         self.save_cache()
         self.root.update_idletasks()
         
-        # Force refresh of notebook tabs
+        # Force refresh of notebook tabs.
+        #
+        # This used to "trigger a style update" by configuring
+        # TNotebook.Tab padding=[20, 10]. That permanently resized the tab strip
+        # on the first toggle and never put it back, so tabs stayed larger than
+        # they started - a repaint hack that mutated layout. update_idletasks
+        # repaints without changing any style.
         if hasattr(self, 'notebook'):
             self.notebook.update_idletasks()
-            # Trigger style update
-            self.style.configure('TNotebook.Tab', padding=[20, 10])
 
     # File operation methods (delegated to handlers)
     def browse_source_folder(self):

@@ -91,9 +91,14 @@ class DarkModeManager:
                 try:
                     value = self.style.lookup(style_name, option)
                 except Exception:
-                    value = None
-                if value:
-                    saved[option] = value
+                    continue
+                # Record the value even when it is EMPTY. An empty lookup means
+                # the theme leaves that option unset - and skipping those was a
+                # real bug: Treeview.fieldbackground starts unset, so after dark
+                # mode set it there was nothing recorded to undo it and the
+                # client list stayed dark grey in light mode. Restoring it to ''
+                # returns it to unset.
+                saved[option] = value if value is not None else ''
             self._original_ttk[style_name] = saved
 
     # ------------------------------------------------------------- public API
@@ -150,6 +155,8 @@ class DarkModeManager:
             if not options:
                 continue
             try:
+                # Options captured as '' are re-applied as '' on purpose, which
+                # clears the value dark mode set and returns them to unset.
                 self.style.configure(style_name, **options)
             except Exception as e:
                 logger.debug(f"Could not restore {style_name}: {e}")
