@@ -176,6 +176,22 @@ class GSTOrganizerApp:
         # Update tree tags
         if hasattr(self, 'client_tree'):
             self.dark_mode_manager.update_tree_tags(self.client_tree, self.dark_mode.get())
+
+        # Re-apply colours that are computed from live state rather than fixed.
+        #
+        # The Setup checklist tints each row by its state (green ok / grey not
+        # chosen / red missing). Dark mode captures colours when it is switched
+        # on and replays them when switched off - so if the state changed while
+        # dark, restoring would put back the PREVIOUS state's tint and show, say,
+        # green for an input that is now invalid. Recomputing fixes it, and on
+        # that screen the colour carries meaning, so a stale one is misleading.
+        setup_tab = getattr(self, 'setup_tab', None)
+        if setup_tab is not None and hasattr(setup_tab, 'refresh_status'):
+            try:
+                setup_tab.refresh_status(force=True)
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    f"Could not refresh setup status after theme change: {e}")
         
         self.save_cache()
         self.root.update_idletasks()

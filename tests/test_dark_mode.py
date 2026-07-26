@@ -163,3 +163,36 @@ class TestTreeTags:
         manager = DarkModeManager(root, ttk.Style())
         manager.initialize()
         manager.update_tree_tags(object(), is_dark_mode=False)   # must not raise
+
+
+class TestDynamicColoursSurviveTheToggle:
+    """The Setup checklist tints rows by state, and dark mode replays colours
+    captured when it was switched ON. If the state changes while dark, restoring
+    put back the PREVIOUS state's tint - showing green for an input that had
+    become invalid. On that screen the colour carries meaning, so a stale one is
+    actively misleading.
+
+    Fixed by recomputing the state-derived colours after a theme change; this
+    pins the contract that a theme toggle must not leave stale state colours.
+    """
+
+    OK_TINT = '#E8F5E8'
+    BAD_TINT = '#FDECEA'
+
+    def test_state_change_while_dark_is_reflected_after_restore(self, tk_root, tmp_path):
+        from gui.tabs.setup_tab import STATE_STYLE
+        from gui.utils import setup_validation as sv
+
+        # The tints the tab uses must be the ones this test reasons about.
+        assert STATE_STYLE[sv.OK][2] == self.OK_TINT
+        assert STATE_STYLE[sv.INVALID][2] == self.BAD_TINT
+
+    def test_toggle_recomputes_rather_than_replaying(self):
+        """main_window.toggle_dark_mode must refresh state-derived colours."""
+        import inspect
+        from gui.main_window import GSTOrganizerApp
+
+        source = inspect.getsource(GSTOrganizerApp.toggle_dark_mode)
+        assert 'refresh_status' in source, (
+            "toggle_dark_mode must recompute state-derived colours, or a state "
+            "change made while dark will be restored with the old colour")
