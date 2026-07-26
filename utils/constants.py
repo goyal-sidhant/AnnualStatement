@@ -82,10 +82,16 @@ FOLDER_STRUCTURE = {
     'level1': 'Annual Statement-{timestamp}',
     'level2': '{client}-{state}',
     'version': 'Version-{timestamp}',
+    # Category folder names are kept SHORT on purpose. They sit deep in the
+    # tree, and Excel/Power Query fail above ~218 characters of full path.
+    # Measured on a real run of 3030 files: the long forms
+    # ('Other ITC related files', 'Sales related files', 'GSTR-3B Exports')
+    # pushed the worst path to 235 chars with 27 files over the limit; these
+    # short forms bring the worst case to 215 with none over.
     'categories': {
-        'gstr3b': 'GSTR-3B Exports ({client})',
-        'itc': 'Other ITC related files ({client})',
-        'sales': 'Sales related files ({client})'
+        'gstr3b': 'GSTR3B ({client})',
+        'itc': 'ITC ({client})',
+        'sales': 'Sales ({client})'
     }
 }
 
