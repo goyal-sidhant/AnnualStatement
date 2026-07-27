@@ -431,26 +431,51 @@ class ExtractorPanel(ttk.Frame):
         canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Mouse wheel scrolling function
+        # Mouse wheel scrolling.
+        #
+        # This used to bind_all on <Enter> and unbind_all on <Leave>. Two
+        # problems, both of which broke scrolling elsewhere in the app once this
+        # panel became a tab in the main window:
+        #   - unbind_all removes EVERY application-level <MouseWheel> binding,
+        #     not just this one, so merely hovering this list and moving away
+        #     killed the Setup tab's scrolling until the app was restarted;
+        #   - Tk sends <Leave> to a container when the pointer moves onto one of
+        #     its CHILDREN, so it also unbound itself while over its own rows.
+        #
+        # Instead: bind once with add='+' (never removing anyone else's binding)
+        # and decide inside the handler whether the pointer is actually over
+        # this canvas.
+        self._wheel_accum = 0.0
+
+        def _in_scroll_area(widget):
+            node = widget
+            while node is not None:
+                if node is canvas:
+                    return True
+                node = getattr(node, 'master', None)
+            return False
+
         def _on_mousewheel(event):
-            # Check if there's content to scroll
-            if canvas.winfo_height() < self.scrollable_frame.winfo_reqheight():
-                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            try:
+                if not canvas.winfo_exists():
+                    return None
+            except tk.TclError:
+                return None
+            if not _in_scroll_area(event.widget):
+                return None
+            # Nothing to scroll - leave the event for whoever else wants it.
+            if canvas.winfo_height() >= self.scrollable_frame.winfo_reqheight():
+                return None
+            # Accumulate: precision touchpads send deltas below 120, which
+            # int(delta/120) would truncate to zero.
+            self._wheel_accum += -event.delta / 120.0 * 3
+            steps = int(self._wheel_accum)
+            if steps:
+                self._wheel_accum -= steps
+                canvas.yview_scroll(steps, "units")
             return "break"
 
-        # Windows mouse wheel binding
-        canvas.bind("<MouseWheel>", _on_mousewheel)
-        self.scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
-
-        # Focus-based binding to avoid conflicts
-        def _bind_wheel(event):
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        def _unbind_wheel(event):
-            canvas.unbind_all("<MouseWheel>")
-
-        canvas.bind("<Enter>", _bind_wheel)
-        canvas.bind("<Leave>", _unbind_wheel)
+        canvas.bind_all("<MouseWheel>", _on_mousewheel, add='+')
 
         canvas.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')

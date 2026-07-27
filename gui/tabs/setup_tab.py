@@ -68,6 +68,70 @@ DARK_SURFACE = {'card': '#2b2b2b', 'muted': '#B9BDC4', 'border': '#4A4A4A',
 
 CARD_BORDER = '#DADCE0'
 
+# Hover help. Written to answer "what do I put here / what will this do?", not
+# to restate the label.
+CHECKLIST_HELP = {
+    'source': ("The folder holding the GST files you received.\n"
+               "They are read from here and copied into the target folder - "
+               "nothing here is moved, renamed or deleted."),
+    'itc': ("Your ITC report template (.xlsx / .xltx).\n"
+            "A copy is made per client and its Links sheet is filled in, so "
+            "the template itself is never modified."),
+    'sales': ("Your Sales report template (.xlsx / .xltx).\n"
+              "Used the same way as the ITC template - copied per client, "
+              "never modified."),
+    'target': ("Where the organised folders and generated reports are created.\n"
+               "Each run adds a new timestamped folder, so previous runs are "
+               "left untouched."),
+}
+
+BROWSE_HELP = {
+    'source': "Pick the folder containing the GST files to organise",
+    'itc': "Pick your ITC report template file",
+    'sales': "Pick your Sales report template file",
+    'target': "Pick where the organised output should be created",
+}
+
+WORKFLOW_HELP = {
+    'organize': ("Sort the files into folders and build the ITC/Sales reports, "
+                 "then stop.\nFast - no Excel automation involved."),
+    'full': ("Everything above, and then open each report in Excel to refresh "
+             "its Power Query and pull the figures out.\n"
+             "Much slower - Excel is driven for a while per report."),
+}
+
+PROCESSING_HELP = {
+    'fresh': ("Create a brand new timestamped folder for this run.\n"
+              "Use this normally - previous runs are left alone."),
+    'rerun': ("Add a new version inside the most recent run's folder instead of "
+              "starting a new one.\nUse when redoing work for the same batch."),
+    'resume': ("Continue a run that was interrupted, skipping files that are "
+               "already in place."),
+}
+
+CLIENT_NAME_HELP = (
+    "Adds the client's name to the folders inside each version folder, e.g.\n"
+    "'ITC (ABC Pvt Ltd)' instead of just 'ITC'.\n\n"
+    "Leave off if paths are getting long - Excel stops opening files beyond "
+    "about 218 characters."
+)
+
+LENGTH_HELP = (
+    "Longest client name allowed in a folder name before it is shortened.\n\n"
+    "Lower values keep paths shorter, which matters on a network share: Excel "
+    "cannot open files whose full path exceeds roughly 218 characters."
+)
+
+SCAN_HELP = (
+    "Read the source folder and work out which client each file belongs to.\n\n"
+    "Read-only - nothing is copied or changed. Results appear on Step 2."
+)
+
+RESCAN_HELP = (
+    "Clear the current results and read the source folder again.\n"
+    "Use after adding or renaming files."
+)
+
 REVALIDATE_DELAY_MS = 350   # debounce: avoid stat'ing a UNC path on every keystroke
 
 SCROLL_STEP_PX = 22         # pixels per scroll unit
@@ -246,6 +310,8 @@ class SetupTab:
             detail.pack(side='left', fill='x', expand=True, pady=5)
 
             self._rows[key] = {'row': row, 'icon': icon, 'name': name, 'detail': detail}
+            for widget in (row, icon, name, detail):
+                Tooltip(widget, CHECKLIST_HELP.get(key, ''))
 
     def _create_workflow(self, parent):
         """How far the run should go: reports only, or the full pipeline."""
@@ -261,11 +327,13 @@ class SetupTab:
         for key, info in WORKFLOW_MODES.items():
             block = tk.Frame(holder, bg='white')
             block.pack(fill='x', pady=2)
-            tk.Radiobutton(block, text=info['name'],
+            radio = tk.Radiobutton(block, text=info['name'],
                            variable=self.app.workflow_mode, value=key,
                            font=('Segoe UI', 10, 'bold'), bg='white',
                            fg=COLORS['dark'], anchor='w',
-                           command=self._on_workflow_change).pack(anchor='w')
+                           command=self._on_workflow_change)
+            radio.pack(anchor='w')
+            Tooltip(radio, WORKFLOW_HELP.get(key, info['description']))
             tk.Label(block, text=f"     {info['description']}",
                      font=('Segoe UI', 9), bg='white', fg='#5F6368',
                      anchor='w').pack(fill='x')
@@ -313,7 +381,9 @@ class SetupTab:
         self._path_tooltips[key] = Tooltip(entry, variable.get())
 
         # command= (not bind) so state='disabled' is honoured and the keyboard works
-        ttk.Button(line, text="Browse…", command=command).pack(side='right', padx=(8, 0))
+        browse = ttk.Button(line, text="Browse…", command=command)
+        browse.pack(side='right', padx=(8, 0))
+        Tooltip(browse, BROWSE_HELP.get(key, 'Choose this item'))
 
         problem = tk.Label(frame, text='', font=('Segoe UI', 8), bg='white',
                            fg=COLORS['danger'], anchor='w')
@@ -331,10 +401,12 @@ class SetupTab:
         for mode_key, mode_info in PROCESSING_MODES.items():
             block = tk.Frame(holder, bg='white')
             block.pack(fill='x', pady=2)
-            tk.Radiobutton(block, text=mode_info['name'],
+            mode_radio = tk.Radiobutton(block, text=mode_info['name'],
                            variable=self.app.processing_mode, value=mode_key,
                            font=('Segoe UI', 10, 'bold'), bg='white',
-                           fg=COLORS['dark'], anchor='w').pack(anchor='w')
+                           fg=COLORS['dark'], anchor='w')
+            mode_radio.pack(anchor='w')
+            Tooltip(mode_radio, PROCESSING_HELP.get(mode_key, mode_info['description']))
             tk.Label(block, text=f"     {mode_info['description']}",
                      font=('Segoe UI', 9), bg='white', fg='#5F6368',
                      anchor='w').pack(fill='x')
@@ -348,6 +420,7 @@ class SetupTab:
             font=('Segoe UI', 10), bg='white',
             command=self.app.update_global_folder_setting)
         self.app.client_name_check.pack(anchor='w')
+        Tooltip(self.app.client_name_check, CLIENT_NAME_HELP)
 
         tk.Label(opts, text="Overrides the per-client setting on the next tab.",
                  font=('Segoe UI', 8), bg='white', fg='#5F6368',
@@ -364,9 +437,11 @@ class SetupTab:
             self._update_length_hint()
             self.app.save_cache()
 
-        tk.Spinbox(length_row, from_=15, to=100, width=5,
-                   textvariable=self.app.client_name_max_length,
-                   command=on_length_change, font=('Segoe UI', 9)).pack(side='left', padx=(8, 6))
+        spin = tk.Spinbox(length_row, from_=15, to=100, width=5,
+                          textvariable=self.app.client_name_max_length,
+                          command=on_length_change, font=('Segoe UI', 9))
+        spin.pack(side='left', padx=(8, 6))
+        Tooltip(spin, LENGTH_HELP)
 
         # Message reflects the ACTUAL configured limit (the old text hard-coded
         # "10 chars" while the default was 35).
@@ -384,10 +459,12 @@ class SetupTab:
         self.app.scan_btn = ttk.Button(inner, text="🔍  Scan Files",
                                        command=self.app.scan_files)
         self.app.scan_btn.pack(side='left')
+        Tooltip(self.app.scan_btn, SCAN_HELP)
 
         self.app.rescan_btn = ttk.Button(inner, text="🔄  Re-scan",
                                          command=self.app.rescan_files)
         self.app.rescan_btn.pack(side='left', padx=8)
+        Tooltip(self.app.rescan_btn, RESCAN_HELP)
 
         # Status strip whose tint tracks readiness (set in _update_actions)
         self.action_bar = tk.Frame(card, bg='#F1F3F4')
